@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "dbt-coverage"
+version = "0.1.0"
+description = "A package for computing coverage of dbt-managed data warehouses"
+authors = ["Andrej Švec <asvec@slido.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.6"
+typer = "^0.4.0"
+
+[tool.poetry.scripts]
+dbt-coverage = 'dbt_coverage.__init__:app'
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
