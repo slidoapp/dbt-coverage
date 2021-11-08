@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import copy
 import io
 import json
 import logging
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-from typing import Dict, Union, Set
+from typing import Dict, Set, Tuple, List, Optional
 
 import typer
 
@@ -15,82 +15,128 @@ logging.basicConfig(level=logging.INFO)
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
 
 
+class CoverageType(Enum):
+    DOC = 'doc'
+    TEST = 'test'
+
+
+class EntityWithCoverage:
+    def coverage(self, cov_type: CoverageType) -> Tuple[Set[str], Set[str]]:
+        raise NotImplementedError()
+
+
 @dataclass
-class Column:
-    """Dataclass containing the information about the docs of a database column."""
+class Column(EntityWithCoverage):
+    """Dataclass containing the information about the docs and tests of a database column."""
 
     name: str
-    doc: str = None
+    doc: bool = None
+    test: bool = None
 
     @staticmethod
-    def from_node(node):
+    def from_node(node) -> Column:
         return Column(
-            node['name'],
-            node.get('description')
+            node['name']
         )
 
-    def has_doc(self):
-        return self.doc is not None and self.doc != ''
+    def coverage(self, cov_type: CoverageType) -> Tuple[Set[str], Set[str]]:
+        if cov_type == CoverageType.DOC:
+            covered = self.doc
+        elif cov_type == CoverageType.TEST:
+            covered = self.test
+        else:
+            raise ValueError(f"Unsupported cov_type {cov_type}")
+
+        covered = {self.name} if covered else set()
+        total = {self.name}
+        return covered, total
+
+    @staticmethod
+    def is_valid_doc(doc):
+        return doc is not None and doc != ''
+
+    @staticmethod
+    def is_valid_test(tests):
+        return tests is not None and tests
 
 
 @dataclass
-class Table:
+class Table(EntityWithCoverage):
     """Dataclass containing the information about a database table and its columns."""
 
     name: str
     columns: Dict[str, Column]
 
     @staticmethod
-    def from_catalog_node(node):
+    def from_node(node) -> Table:
         return Table(
             node['metadata']['name'],
-            {col['name']: Column.from_node(col) for col in node['columns'].values()}
-        )
-
-    @staticmethod
-    def from_manifest_node(node):
-        return Table(
-            node['name'],
             {col['name']: Column.from_node(col) for col in node['columns'].values()}
         )
 
     def get_column(self, column_name):
         return self.columns.get(column_name)
 
-    def get_coverage(self):
-        documented = {col.name for col in self.columns.values() if col.has_doc()}
-        total = {col.name for col in self.columns.values()}
-        return documented, total
+    def coverage(self, cov_type: CoverageType):
+        coverages = [col.coverage(cov_type) for col in self.columns.values()]
+        covered = set(f'{self.name}.{col}' for covered, _ in coverages for col in covered)
+        total = set(f'{self.name}.{col}' for _, total in coverages for col in total)
+        return covered, total
 
 
 @dataclass
-class Catalog:
+class Catalog(EntityWithCoverage):
     """Dataclass containing the information about a database catalog, its tables and columns."""
 
     tables: Dict[str, Table]
 
     @staticmethod
-    def from_catalog_nodes(nodes):
-        return Catalog({f"{node['metadata']['name']}": Table.from_catalog_node(node)
-                        for node in nodes})
-
-    @staticmethod
-    def from_manifest_nodes(nodes):
-        return Catalog({f"{node['name']}": Table.from_manifest_node(node)
-                        for node in nodes})
+    def from_nodes(nodes):
+        return Catalog({node['metadata']['name']: Table.from_node(node) for node in nodes})
 
     def get_table(self, table_name):
         return self.tables.get(table_name)
 
-    def get_coverage(self):
-        coverages = [(table, table.get_coverage()) for table in self.tables.values()]
-        documented = set(f'{table.name}.{col}'
-                         for table, (documented, _) in coverages
-                         for col in documented)
-        total = set(f'{table.name}.{col}'
-                    for table, (_, total) in coverages
-                    for col in total)
-        return documented, total
+    def coverage(self, cov_type: CoverageType):
+        coverages = [table.coverage(cov_type) for table in self.tables.values()]
+        covered = set(col for covered, _ in coverages for col in covered)
+        total = set(col for _, total in coverages for col in total)
+        return covered, total
+
+
+@dataclass
+class Manifest:
+    sources: Dict[str, Dict[str, Dict]]
+    models: Dict[str, Dict[str, Dict]]
+    tests: Dict[str, Dict[str, List[Dict]]]
+
+    @classmethod
+    def from_nodes(cls, manifest_nodes: Dict[str: Dict]) -> Manifest:
+        id_to_table_name = {table_id: table['name'] for table_id, table in manifest_nodes.items()
+                            if table['resource_type'] in ['source', 'model']}
+        sources = {table['name']: table['columns'] for table in manifest_nodes.values()
+                   if table['resource_type'] == 'source'}
+        models = {table['name']: table['columns'] for table in manifest_nodes.values()
+                  if table['resource_type'] == 'model'}
+        tests = {}
+        for node in manifest_nodes.values():
+            if node['resource_type'] != 'test' or 'schema' not in node['tags']:
+                continue
+
+            depends_on = node['depends_on']['nodes']
+            if node['test_metadata']['name'] == 'relationships':
+                table_id = depends_on[len(depends_on) - 1]
+            else:
+                table_id = depends_on[0]
+            table_name = id_to_table_name[table_id]
+            column_name = node['column_name'] or node['test_metadata']['kwargs']['column_name'] \
+                or node['test_metadata']['kwargs']['arg']
+
+            table_tests = tests.setdefault(table_name, {})
+            column_tests = table_tests.setdefault(column_name, [])
+            column_tests.append(node)
+
+        return Manifest(sources, models, tests)
 
 
 @dataclass
@@ -125,31 +171,33 @@ class CoverageReport:
             self.coverage = None
 
     @staticmethod
-    def from_catalog(catalog: Catalog):
-        cov = catalog.get_coverage()
+    def from_catalog(catalog: Catalog, cov_type: CoverageType):
+        cov = catalog.coverage(cov_type)
         return CoverageReport(
             catalog,
             cov[0],
             cov[1],
-            {table.name: CoverageReport.from_table(table) for table in catalog.tables.values()}
+            {table.name: CoverageReport.from_table(table, cov_type)
+             for table in catalog.tables.values()}
         )
 
     @staticmethod
-    def from_table(table: Table):
-        cov = table.get_coverage()
+    def from_table(table: Table, cov_type: CoverageType):
+        cov = table.coverage(cov_type)
         return CoverageReport(
             table,
             cov[0],
             cov[1],
-            {col.name: CoverageReport.from_column(col) for col in table.columns.values()}
+            {col.name: CoverageReport.from_column(col, cov_type) for col in table.columns.values()}
         )
 
     @staticmethod
-    def from_column(column: Column):
+    def from_column(column: Column, cov_type: CoverageType):
+        cov = column.coverage(cov_type)
         return CoverageReport(
             column,
-            {''} if column.has_doc() else set(),  # Simulate one or zero "subentities" covered
-            {''},  # Pretend columns has one "subentity"
+            cov[0],
+            cov[1],
             {}
         )
 
@@ -227,8 +275,8 @@ class CoverageReport:
         else:
             return CoverageReport(
                 Column(report['name']),
-                {''} if report['covered'] > 0 else set(),
-                {''},
+                {report['name']} if report['covered'] > 0 else set(),
+                {report['name']},
                 {}
             )
 
@@ -369,39 +417,55 @@ class CoverageDiff:
         return buf.getvalue()
 
 
-def load_files(project_dir: Path):
-    logging.info("Loading catalog and manifest files from project dir: %s", project_dir)
-
+def load_catalog(project_dir: Path) -> Catalog:
     with open(project_dir / 'target/catalog.json') as f:
         catalog_json = json.load(f)
+
+    catalog_nodes = {**catalog_json['sources'], **catalog_json['nodes']}
+    catalog = Catalog.from_nodes(catalog_nodes.values())
+
+    logging.info("Successfully loaded %d catalog nodes", len(catalog_nodes))
+
+    return catalog
+
+
+def load_manifest(project_dir: Path) -> Manifest:
     with open(project_dir / 'target/manifest.json') as f:
         manifest_json = json.load(f)
 
-    catalog_nodes = {**catalog_json['sources'], **catalog_json['nodes']}
     manifest_nodes = {**manifest_json['sources'], **manifest_json['nodes']}
+    manifest = Manifest.from_nodes(manifest_nodes)
 
-    catalog = Catalog.from_catalog_nodes(catalog_nodes.values())
-    manifest = Catalog.from_manifest_nodes(manifest_nodes.values())
-
-    logging.info("Successfully loaded %d catalog nodes and %d manifest nodes",
-                 len(catalog.tables), len(manifest.tables))
-    return catalog, manifest
+    return manifest
 
 
-def compute_coverage(catalog: Catalog, manifest: Catalog):
-    logging.info("Computing coverage for %d tables", len(catalog.tables))
-    catalog_cov = copy.deepcopy(catalog)
+def load_files(project_dir: Path) -> Catalog:
+    logging.info("Loading catalog and manifest files from project dir: %s", project_dir)
+
+    catalog = load_catalog(project_dir)
+    manifest = load_manifest(project_dir)
 
     for table_name in catalog.tables:
-        coverage_table = catalog_cov.get_table(table_name)
-        manifest_table = manifest.get_table(table_name)
+        catalog_table = catalog.get_table(table_name)
+        manifest_source_table = manifest.sources.get(table_name, {})
+        manifest_model_table = manifest.models.get(table_name, {})
+        manifest_table_tests = manifest.tests.get(table_name, {})
 
-        for coverage_column in coverage_table.columns.values():
-            manifest_column = manifest_table.get_column(coverage_column.name)
-            if manifest_column is not None:
-                coverage_column.doc = manifest_column.doc
+        for catalog_column in catalog_table.columns.values():
+            manifest_source_column = manifest_source_table.get(catalog_column.name)
+            manifest_model_column = manifest_model_table.get(catalog_column.name)
+            manifest_column_tests = manifest_table_tests.get(catalog_column.name)
 
-    coverage_report = CoverageReport.from_catalog(catalog_cov)
+            doc = (manifest_source_column or manifest_model_column or {}).get('description')
+            catalog_column.doc = Column.is_valid_doc(doc)
+            catalog_column.test = Column.is_valid_test(manifest_column_tests)
+
+    return catalog
+
+
+def compute_coverage(catalog: Catalog, cov_type: CoverageType):
+    logging.info("Computing coverage for %d tables", len(catalog.tables))
+    coverage_report = CoverageReport.from_catalog(catalog, cov_type)
     logging.info("Coverage computed successfully")
     return coverage_report
 
@@ -447,15 +511,16 @@ def fail_compare(coverage_report: CoverageReport, compare_path: Path):
 
 
 def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.json'),
-               cov_fail_under: float = None, cov_fail_compare: Path = None):
+               cov_type: CoverageType = CoverageType.DOC, cov_fail_under: float = None,
+               cov_fail_compare: Path = None):
     """
     Computes coverage for a dbt project.
 
     Use this method in your Python code to bypass typer.
     """
 
-    catalog, manifest = load_files(project_dir)
-    coverage_report = compute_coverage(catalog, manifest)
+    catalog = load_files(project_dir)
+    coverage_report = compute_coverage(catalog, cov_type)
 
     print(coverage_report.to_formatted_string())
 
@@ -470,7 +535,7 @@ def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.
 
 def do_compare(report: Path, compare_report: Path):
     """
-    Compares two coverage reports.
+    Compares two coverage reports generated by the ``compute`` command.
 
     Use this method in your Python code to bypass typer.
     """
@@ -486,6 +551,7 @@ def do_compare(report: Path, compare_report: Path):
 @app.command()
 def compute(project_dir: Path = typer.Option('.', help="dbt project directory path."),
             cov_report: Path = typer.Option('coverage.json', help="Output coverage report path."),
+            cov_type: CoverageType = typer.Argument(..., help="Type of coverage to compute."),
             cov_fail_under: float = typer.Option(None, help="Fail if coverage is lower than "
                                                             "provided threshold."),
             cov_fail_compare: Path = typer.Option(None, help="Path to coverage report to compare "
@@ -495,14 +561,14 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
                                                              "tests.")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
-    do_compute(project_dir, cov_report, cov_fail_under, cov_fail_compare)
+    do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare)
 
 
 @app.command()
 def compare(report: Path = typer.Argument(..., help="Path to coverage report."),
             compare_report: Path = typer.Argument(..., help="Path to another coverage report to "
                                                             "compare with.")):
-    """Compare two coverage reports."""
+    """Compare two coverage reports generated by the compute command."""
 
     return do_compare(report, compare_report)
 
