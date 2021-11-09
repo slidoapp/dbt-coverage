@@ -146,7 +146,9 @@ class CoverageReport:
     subentities.
 
     Attributes:
-        entity: ``Catalog``, ``Table`` or ``Column`` that the coverage report is calculated for.
+        report_type: ``Type`` of the entity that the report represents, either CATALOG, TABLE or
+            COLUMN.
+        entity_name: In case of TABLE and COLUMN reports, the name of the respective entity.
         covered: Collection of names of columns in the entity that are documented.
         total: Collection of names of all columns in the entity.
         misses: Collection of names of all columns in the entity that are not documented.
@@ -155,7 +157,13 @@ class CoverageReport:
             ``Catalog`` and for ``Column``s of ``Table``s.
     """
 
-    entity: Union[Catalog, Table, Column]
+    class Type(Enum):
+        CATALOG = 'catalog'
+        TABLE = 'table'
+        COLUMN = 'column'
+
+    report_type: Type
+    entity_name: Optional[str]
     covered: Set[str]
     total: Set[str]
     misses: Set[str] = field(init=False)
@@ -170,42 +178,45 @@ class CoverageReport:
             self.misses = None
             self.coverage = None
 
-    @staticmethod
-    def from_catalog(catalog: Catalog, cov_type: CoverageType):
+    @classmethod
+    def from_catalog(cls, catalog: Catalog, cov_type: CoverageType):
         cov = catalog.coverage(cov_type)
         return CoverageReport(
-            catalog,
+            cls.Type.CATALOG,
+            None,
             cov[0],
             cov[1],
             {table.name: CoverageReport.from_table(table, cov_type)
              for table in catalog.tables.values()}
         )
 
-    @staticmethod
-    def from_table(table: Table, cov_type: CoverageType):
+    @classmethod
+    def from_table(cls, table: Table, cov_type: CoverageType):
         cov = table.coverage(cov_type)
         return CoverageReport(
-            table,
+            cls.Type.TABLE,
+            table.name,
             cov[0],
             cov[1],
             {col.name: CoverageReport.from_column(col, cov_type) for col in table.columns.values()}
         )
 
-    @staticmethod
-    def from_column(column: Column, cov_type: CoverageType):
+    @classmethod
+    def from_column(cls, column: Column, cov_type: CoverageType):
         cov = column.coverage(cov_type)
         return CoverageReport(
-            column,
+            cls.Type.COLUMN,
+            column.name,
             cov[0],
             cov[1],
             {}
         )
 
     def to_formatted_string(self):
-        if isinstance(self.entity, Table):
-            return f"{self.entity.name:50} {len(self.covered):5}/{len(self.total):<5} " \
+        if self.report_type == CoverageReport.Type.TABLE:
+            return f"{self.entity_name:50} {len(self.covered):5}/{len(self.total):<5} " \
                    f"{self.coverage * 100:5.1f}%"
-        elif isinstance(self.entity, Catalog):
+        elif self.report_type == CoverageReport.Type.CATALOG:
             buf = io.StringIO()
 
             buf.write("Coverage report\n")
@@ -218,26 +229,26 @@ class CoverageReport:
 
             return buf.getvalue()
         else:
-            raise TypeError(f"Unsupported entity type for to_formatted_string method: "
-                            f"{type(self.entity)}")
+            raise TypeError(f"Unsupported report_type for to_formatted_string method: "
+                            f"{type(self.report_type)}")
 
     def to_dict(self):
-        if isinstance(self.entity, Column):
+        if self.report_type == CoverageReport.Type.COLUMN:
             return {
-                'name': self.entity.name,
+                'name': self.entity_name,
                 'covered': len(self.covered),
                 'total': len(self.total),
                 'coverage': self.coverage
             }
-        elif isinstance(self.entity, Table):
+        elif self.report_type == CoverageReport.Type.TABLE:
             return {
-                'name': self.entity.name,
+                'name': self.entity_name,
                 'covered': len(self.covered),
                 'total': len(self.total),
                 'coverage': self.coverage,
                 'columns': [col_report.to_dict() for col_report in self.subentities.values()]
             }
-        elif isinstance(self.entity, Catalog):
+        elif self.report_type == CoverageReport.Type.CATALOG:
             return {
                 'covered': len(self.covered),
                 'total': len(self.total),
@@ -245,7 +256,8 @@ class CoverageReport:
                 'tables': [table_report.to_dict() for table_report in self.subentities.values()]
             }
         else:
-            raise TypeError(f"Unsupported entity type for to_dict method: {type(self.entity)}")
+            raise TypeError(f"Unsupported report_type for to_dict method: "
+                            f"{type(self.report_type)}")
 
     @staticmethod
     def from_dict(report):
@@ -253,11 +265,12 @@ class CoverageReport:
             subentities = {table_report['name']: CoverageReport.from_dict(table_report) for
                            table_report in report['tables']}
             return CoverageReport(
-                Catalog(None),
-                set(f"{tbl.entity.name}.{col}"
+                CoverageReport.Type.CATALOG,
+                None,
+                set(f"{tbl.entity_name}.{col}"
                     for tbl in subentities.values()
                     for col in tbl.covered),
-                set(f"{tbl.entity.name}.{col}"
+                set(f"{tbl.entity_name}.{col}"
                     for tbl in subentities.values()
                     for col in tbl.total),
                 subentities
@@ -267,14 +280,16 @@ class CoverageReport:
             subentities = {col_report['name']: CoverageReport.from_dict(col_report)
                            for col_report in report['columns']}
             return CoverageReport(
-                Table(table_name, None),
-                set(col.entity.name for col in subentities.values() for _ in col.covered),
-                set(col.entity.name for col in subentities.values() for _ in col.total),
+                CoverageReport.Type.TABLE,
+                table_name,
+                set(col.entity_name for col in subentities.values() for _ in col.covered),
+                set(col.entity_name for col in subentities.values() for _ in col.total),
                 subentities
             )
         else:
             return CoverageReport(
-                Column(report['name']),
+                CoverageReport.Type.COLUMN,
+                report['name'],
                 {report['name']} if report['covered'] > 0 else set(),
                 {report['name']},
                 {}
@@ -294,12 +309,12 @@ class CoverageDiff:
 
     # @formatter:off
     def __post_init__(self):
-        assert self.before.entity is None or type(self.before.entity) == type(self.after.entity)  # noqa
+        assert self.before.report_type == self.after.report_type
         self.new_misses = self.find_new_misses()
     # @formatter:on
 
     def find_new_misses(self):
-        if isinstance(self.after.entity, Column):
+        if self.after.report_type == CoverageReport.Type.COLUMN:
             return None
 
         new_misses_names = self.after.misses - self.before.misses \
@@ -311,7 +326,8 @@ class CoverageDiff:
         for new_miss_entity_name in new_misses_entity_names:
             res[new_miss_entity_name] = CoverageDiff(
                 self.before.subentities.get(new_miss_entity_name,
-                                            CoverageReport(None, None, None, {})),
+                                            CoverageReport(self.before.report_type, None, None,
+                                                           None, {})),
                 self.after.subentities[new_miss_entity_name]
             )
 
@@ -320,9 +336,9 @@ class CoverageDiff:
     def summary(self):
         buf = io.StringIO()
 
-        if not isinstance(self.after.entity, Catalog):
-            raise TypeError(f"Unsupported entity type for summary method: "
-                            f"{type(self.after.entity)}")
+        if self.after.report_type != CoverageReport.Type.CATALOG:
+            raise TypeError(f"Unsupported report_type for summary method: "
+                            f"{self.after.report_type}")
 
         buf.write(f"{'':10}{'before':>10}{'after':>10}{'+/-':>15}\n")
         buf.write('=' * 45 + "\n")
@@ -357,10 +373,10 @@ class CoverageDiff:
         return buf.getvalue()
 
     def new_misses_summary(self):
-        if isinstance(self.after.entity, Column):
+        if self.after.report_type == CoverageReport.Type.COLUMN:
             return self._new_miss_summary_row()
 
-        elif isinstance(self.after.entity, Table):
+        elif self.after.report_type == CoverageReport.Type.TABLE:
             buf = io.StringIO()
 
             buf.write(self._new_miss_summary_row())
@@ -369,7 +385,7 @@ class CoverageDiff:
 
             return buf.getvalue()
 
-        elif isinstance(self.after.entity, Catalog):
+        elif self.after.report_type == CoverageReport.Type.CATALOG:
             buf = io.StringIO()
             buf.write("=" * 94 + '\n')
             buf.write(self._new_miss_summary_row())
@@ -381,21 +397,22 @@ class CoverageDiff:
             return buf.getvalue()
 
         else:
-            raise TypeError(f"Unsupported entity type for new_misses_summary method: "
-                            f"{type(self.after.entity)}")
+            raise TypeError(f"Unsupported report_type for new_misses_summary method: "
+                            f"{self.after.report_type}")
 
     def _new_miss_summary_row(self):
-        if isinstance(self.after.entity, Catalog):
+        if self.after.report_type == CoverageReport.Type.CATALOG:
             title_prefix = ''
-        elif isinstance(self.after.entity, Table):
+        elif self.after.report_type == CoverageReport.Type.TABLE:
             title_prefix = '- '
-        elif isinstance(self.after.entity, Column):
+        elif self.after.report_type == CoverageReport.Type.COLUMN:
             title_prefix = '-- '
         else:
-            raise TypeError(f"Unsupported entity type for _new_miss_summary_row method: "
-                            f"{type(self.after.entity)}")
+            raise TypeError(f"Unsupported report_type for _new_miss_summary_row method: "
+                            f"{type(self.after.report_type)}")
 
-        title = "Catalog" if isinstance(self.after.entity, Catalog) else self.after.entity.name
+        title = "Catalog" if self.after.report_type == CoverageReport.Type.CATALOG \
+            else self.after.entity_name
         title = title_prefix + title
 
         before_covered = len(self.before.covered) if self.before.covered is not None else '-'
