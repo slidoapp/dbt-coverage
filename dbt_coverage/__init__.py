@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
 
 
-class CoverageType(Enum):
+class CoverageType(str, Enum):
     DOC = 'doc'
     TEST = 'test'
 
@@ -163,6 +163,7 @@ class CoverageReport:
         COLUMN = 'column'
 
     report_type: Type
+    cov_type: CoverageType
     entity_name: Optional[str]
     covered: Set[str]
     total: Set[str]
@@ -183,6 +184,7 @@ class CoverageReport:
         cov = catalog.coverage(cov_type)
         return CoverageReport(
             cls.Type.CATALOG,
+            cov_type,
             None,
             cov[0],
             cov[1],
@@ -195,6 +197,7 @@ class CoverageReport:
         cov = table.coverage(cov_type)
         return CoverageReport(
             cls.Type.TABLE,
+            cov_type,
             table.name,
             cov[0],
             cov[1],
@@ -206,6 +209,7 @@ class CoverageReport:
         cov = column.coverage(cov_type)
         return CoverageReport(
             cls.Type.COLUMN,
+            cov_type,
             column.name,
             cov[0],
             cov[1],
@@ -250,6 +254,7 @@ class CoverageReport:
             }
         elif self.report_type == CoverageReport.Type.CATALOG:
             return {
+                'cov_type': self.cov_type,
                 'covered': len(self.covered),
                 'total': len(self.total),
                 'coverage': self.coverage,
@@ -260,12 +265,13 @@ class CoverageReport:
                             f"{type(self.report_type)}")
 
     @staticmethod
-    def from_dict(report):
+    def from_dict(report, cov_type: CoverageType):
         if 'tables' in report:
-            subentities = {table_report['name']: CoverageReport.from_dict(table_report) for
-                           table_report in report['tables']}
+            subentities = {table_report['name']: CoverageReport.from_dict(table_report, cov_type)
+                           for table_report in report['tables']}
             return CoverageReport(
                 CoverageReport.Type.CATALOG,
+                cov_type,
                 None,
                 set(f"{tbl.entity_name}.{col}"
                     for tbl in subentities.values()
@@ -277,10 +283,11 @@ class CoverageReport:
             )
         elif 'columns' in report:
             table_name = report['name']
-            subentities = {col_report['name']: CoverageReport.from_dict(col_report)
+            subentities = {col_report['name']: CoverageReport.from_dict(col_report, cov_type)
                            for col_report in report['columns']}
             return CoverageReport(
                 CoverageReport.Type.TABLE,
+                cov_type,
                 table_name,
                 set(col.entity_name for col in subentities.values() for _ in col.covered),
                 set(col.entity_name for col in subentities.values() for _ in col.total),
@@ -289,6 +296,7 @@ class CoverageReport:
         else:
             return CoverageReport(
                 CoverageReport.Type.COLUMN,
+                cov_type,
                 report['name'],
                 {report['name']} if report['covered'] > 0 else set(),
                 {report['name']},
@@ -309,7 +317,13 @@ class CoverageDiff:
 
     # @formatter:off
     def __post_init__(self):
-        assert self.before.report_type == self.after.report_type
+        assert self.before.cov_type == self.after.cov_type, \
+            f"Cannot compare reports with different cov_types: {self.before.cov_type} and " \
+            f"{self.after.cov_type}"
+        assert self.before.report_type == self.after.report_type, \
+            f"Cannot compare reports with different report_types: {self.before.report_type} and " \
+            f"{self.after.report_type}"
+
         self.new_misses = self.find_new_misses()
     # @formatter:on
 
@@ -326,8 +340,9 @@ class CoverageDiff:
         for new_miss_entity_name in new_misses_entity_names:
             res[new_miss_entity_name] = CoverageDiff(
                 self.before.subentities.get(new_miss_entity_name,
-                                            CoverageReport(self.before.report_type, None, None,
-                                                           None, {})),
+                                            CoverageReport(self.before.report_type,
+                                                           self.before.cov_type,
+                                                           None, None, None, {})),
                 self.after.subentities[new_miss_entity_name]
             )
 
@@ -498,10 +513,10 @@ def compare_reports(report, compare_report):
 
 def read_coverage_report(path: Path):
     with open(path) as f:
-        compare_report = json.load(f)
-    compare_report = CoverageReport.from_dict(compare_report)
+        report = json.load(f)
+    report = CoverageReport.from_dict(report, CoverageType[report['cov_type'].upper()])
 
-    return compare_report
+    return report
 
 
 def write_coverage_report(coverage_report: CoverageReport, path: Path):
