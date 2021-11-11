@@ -79,6 +79,10 @@ $ dbt-coverage compute doc --cov-report after.json --cov-fail-compare before.jso
 $ dbt-coverage compare after.json before.json  # Generate a detailed coverage delta report
 ```
 
+## Related packaged
+
+https://github.com/mikaelene/dbt-test-coverage
+
 ## License
 
 Licensed under the MIT license (see [LICENSE.md](LICENSE.md) file for more
