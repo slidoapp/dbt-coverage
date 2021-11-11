@@ -78,3 +78,8 @@ $ dbt docs generate
 $ dbt-coverage compute doc --cov-report after.json --cov-fail-compare before.json  # Fail if the current coverage is lower than coverage in before.json
 $ dbt-coverage compare after.json before.json  # Generate a detailed coverage delta report
 ```
+
+## License
+
+Licensed under the MIT license (see [LICENSE.md](LICENSE.md) file for more
+details).
