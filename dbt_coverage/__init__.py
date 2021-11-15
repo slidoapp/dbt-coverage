@@ -124,6 +124,9 @@ class Manifest:
                 continue
 
             depends_on = node['depends_on']['nodes']
+            if not depends_on:
+                continue
+
             if node['test_metadata']['name'] == 'relationships':
                 table_id = depends_on[len(depends_on) - 1]
             else:
