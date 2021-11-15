@@ -135,6 +135,9 @@ class Manifest:
             column_name = node['column_name'] or node['test_metadata']['kwargs']['column_name'] \
                 or node['test_metadata']['kwargs']['arg']
 
+            if not column_name:
+                continue
+
             table_tests = tests.setdefault(table_name, {})
             column_tests = table_tests.setdefault(column_name, [])
             column_tests.append(node)
