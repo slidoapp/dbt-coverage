@@ -6,7 +6,7 @@ managed data warehouses.
 ## Installation
 
 ```
-pip install git+https://github.com/slidoapp/dbt-coverage.git
+pip install dbt-coverage
 ```
 
 ## Usage
