@@ -317,40 +317,34 @@ class CoverageReport:
 class CoverageDiff:
     """Dataclass summarizing the difference of two coverage reports, mainly its decrease."""
 
-    before: CoverageReport
+    before: Optional[CoverageReport]
     after: CoverageReport
     new_misses: Dict[str, CoverageDiff] = field(init=False)
 
-    # @formatter:off
     def __post_init__(self):
-        assert self.before.cov_type == self.after.cov_type, \
+        assert self.before is None or self.before.cov_type == self.after.cov_type, \
             f"Cannot compare reports with different cov_types: {self.before.cov_type} and " \
             f"{self.after.cov_type}"
-        assert self.before.report_type == self.after.report_type, \
+        assert self.before is None or self.before.report_type == self.after.report_type, \
             f"Cannot compare reports with different report_types: {self.before.report_type} and " \
             f"{self.after.report_type}"
 
         self.new_misses = self.find_new_misses()
-    # @formatter:on
 
     def find_new_misses(self):
         if self.after.report_type == CoverageReport.Type.COLUMN:
             return None
 
-        new_misses_names = self.after.misses - self.before.misses \
-            if self.before.misses is not None \
-            else self.after.misses
+        new_misses_names = self.after.misses - (self.before.misses if self.before is not None
+                                                else set())
         new_misses_entity_names = set(miss.split('.', maxsplit=1)[0] for miss in new_misses_names)
 
         res: Dict[str, CoverageDiff] = {}
         for new_miss_entity_name in new_misses_entity_names:
-            res[new_miss_entity_name] = CoverageDiff(
-                self.before.subentities.get(new_miss_entity_name,
-                                            CoverageReport(self.before.report_type,
-                                                           self.before.cov_type,
-                                                           None, None, None, {})),
-                self.after.subentities[new_miss_entity_name]
-            )
+            before_entity = self.before.subentities.get(new_miss_entity_name) \
+                if self.before is not None else None
+            after_entity = self.after.subentities[new_miss_entity_name]
+            res[new_miss_entity_name] = CoverageDiff(before_entity, after_entity)
 
         return res
 
@@ -436,14 +430,11 @@ class CoverageDiff:
             else self.after.entity_name
         title = title_prefix + title
 
-        before_covered = len(self.before.covered) if self.before.covered is not None else '-'
-        before_total = len(self.before.total) if self.before.total is not None else '-'
+        before_covered = len(self.before.covered) if self.before is not None else '-'
+        before_total = len(self.before.total) if self.before is not None else '-'
+        before_coverage = f"({self.before.coverage:.2%})" if self.before is not None else "(-)"
         after_covered = len(self.after.covered)
         after_total = len(self.after.total)
-        if self.before.coverage is not None:
-            before_coverage = f"({self.before.coverage:.2%})"
-        else:
-            before_coverage = "(-)"
         after_coverage = f"({self.after.coverage:.2%})"
 
         buf = io.StringIO()
