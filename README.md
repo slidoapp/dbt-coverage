@@ -98,7 +98,8 @@ $ dbt-coverage compute doc --cov-report before.json --cov-fail-under 0.5  # Fail
 
 # Make changes to the dbt project, e.g. add some columns to the DWH, document some columns, etc.
 
-$ dbt docs generate
+$ dbt run  # Materialize the changed models
+$ dbt docs generate  # Generate catalog.json and manifest.json
 $ dbt-coverage compute doc --cov-report after.json --cov-fail-compare before.json  # Fail if the current coverage is lower than coverage in before.json
 $ dbt-coverage compare after.json before.json  # Generate a detailed coverage delta report
 ```
