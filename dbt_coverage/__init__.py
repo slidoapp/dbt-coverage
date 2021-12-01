@@ -36,7 +36,7 @@ class Column(EntityWithCoverage):
     @staticmethod
     def from_node(node) -> Column:
         return Column(
-            node['name']
+            node['name'].lower()
         )
 
     def coverage(self, cov_type: CoverageType) -> Tuple[Set[str], Set[str]]:
@@ -69,9 +69,10 @@ class Table(EntityWithCoverage):
 
     @staticmethod
     def from_node(node) -> Table:
+        columns = [Column.from_node(col) for col in node['columns'].values()]
         return Table(
-            node['metadata']['name'],
-            {col['name']: Column.from_node(col) for col in node['columns'].values()}
+            f"{node['metadata']['schema']}.{node['metadata']['name']}".lower(),
+            {col.name: col for col in columns}
         )
 
     def get_column(self, column_name):
@@ -92,7 +93,8 @@ class Catalog(EntityWithCoverage):
 
     @staticmethod
     def from_nodes(nodes):
-        return Catalog({node['metadata']['name']: Table.from_node(node) for node in nodes})
+        tables = [Table.from_node(table) for table in nodes]
+        return Catalog({table.name: table for table in tables})
 
     def get_table(self, table_name):
         return self.tables.get(table_name)
@@ -112,12 +114,26 @@ class Manifest:
 
     @classmethod
     def from_nodes(cls, manifest_nodes: Dict[str: Dict]) -> Manifest:
-        id_to_table_name = {table_id: table['name'] for table_id, table in manifest_nodes.items()
+        def full_table_name(table):
+            return f'{table["schema"]}.{table["name"]}'.lower()
+
+        def normalize_column_names(columns):
+            for col in columns.values():
+                col['name'] = col['name'].lower()
+            return {col['name']: col for col in columns.values()}
+
+        sources = [table for table in manifest_nodes.values()
+                   if table['resource_type'] == 'source']
+        sources = {full_table_name(table): normalize_column_names(table['columns'])
+                   for table in sources}
+
+        models = [table for table in manifest_nodes.values() if table['resource_type'] == 'model']
+        models = {full_table_name(table): normalize_column_names(table['columns'])
+                  for table in models}
+
+        id_to_table_name = {table_id: full_table_name(table)
+                            for table_id, table in manifest_nodes.items()
                             if table['resource_type'] in ['source', 'model']}
-        sources = {table['name']: table['columns'] for table in manifest_nodes.values()
-                   if table['resource_type'] == 'source'}
-        models = {table['name']: table['columns'] for table in manifest_nodes.values()
-                  if table['resource_type'] == 'model'}
         tests = {}
         for node in manifest_nodes.values():
             if node['resource_type'] != 'test' or 'schema' not in node['tags']:
@@ -138,6 +154,7 @@ class Manifest:
             if not column_name:
                 continue
 
+            column_name = column_name.lower()
             table_tests = tests.setdefault(table_name, {})
             column_tests = table_tests.setdefault(column_name, [])
             column_tests.append(node)
@@ -337,7 +354,14 @@ class CoverageDiff:
 
         new_misses_names = self.after.misses - (self.before.misses if self.before is not None
                                                 else set())
-        new_misses_entity_names = set(miss.split('.', maxsplit=1)[0] for miss in new_misses_names)
+
+        # Table names are in the form schema_name.table_name
+        if self.after.report_type == CoverageReport.Type.CATALOG:
+            new_misses_entity_names = set('.'.join(miss.split('.', maxsplit=2)[:2])
+                                          for miss in new_misses_names)
+        else:
+            new_misses_entity_names = set(miss.split('.', maxsplit=1)[0]
+                                          for miss in new_misses_names)
 
         res: Dict[str, CoverageDiff] = {}
         for new_miss_entity_name in new_misses_entity_names:
@@ -453,7 +477,7 @@ def load_catalog(project_dir: Path) -> Catalog:
     catalog_nodes = {**catalog_json['sources'], **catalog_json['nodes']}
     catalog = Catalog.from_nodes(catalog_nodes.values())
 
-    logging.info("Successfully loaded %d catalog nodes", len(catalog_nodes))
+    logging.info("Successfully loaded %d tables from catalog", len(catalog.tables))
 
     return catalog
 

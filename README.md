@@ -38,14 +38,14 @@ $ dbt-coverage compute doc --cov-report coverage-doc.json  # Compute doc coverag
 
 Coverage report
 =====================================================================
-customers                                              6/7      85.7%
-orders                                                 9/9     100.0%
-raw_customers                                          0/3       0.0%
-raw_orders                                             0/4       0.0%
-raw_payments                                           0/4       0.0%
-stg_customers                                          0/3       0.0%
-stg_orders                                             0/4       0.0%
-stg_payments                                           0/4       0.0%
+jaffle_shop.customers                                  6/7      85.7%
+jaffle_shop.orders                                     9/9     100.0%
+jaffle_shop.raw_customers                              0/3       0.0%
+jaffle_shop.raw_orders                                 0/4       0.0%
+jaffle_shop.raw_payments                               0/4       0.0%
+jaffle_shop.stg_customers                              0/3       0.0%
+jaffle_shop.stg_orders                                 0/4       0.0%
+jaffle_shop.stg_payments                               0/4       0.0%
 =====================================================================
 Total                                                 15/38     39.5%
 
@@ -53,14 +53,14 @@ $ dbt-coverage compute test --cov-report coverage-test.json  # Compute test cove
 
 Coverage report
 =====================================================================
-customers                                              1/7      14.3%
-orders                                                 8/9      88.9%
-raw_customers                                          0/3       0.0%
-raw_orders                                             0/4       0.0%
-raw_payments                                           0/4       0.0%
-stg_customers                                          1/3      33.3%
-stg_orders                                             2/4      50.0%
-stg_payments                                           2/4      50.0%
+jaffle_shop.customers                                  1/7      14.3%
+jaffle_shop.orders                                     8/9      88.9%
+jaffle_shop.raw_customers                              0/3       0.0%
+jaffle_shop.raw_orders                                 0/4       0.0%
+jaffle_shop.raw_payments                               0/4       0.0%
+jaffle_shop.stg_customers                              1/3      33.3%
+jaffle_shop.stg_orders                                 2/4      50.0%
+jaffle_shop.stg_payments                               2/4      50.0%
 =====================================================================
 Total                                                 14/38     36.8%
 ```
@@ -87,12 +87,12 @@ Misses            23        24          +1/+0
 =============================================
 
 # New misses
-==============================================================
-Catalog              15/38   (39.47%)  ->    15/39   (38.46%) 
-==============================================================
-- customers           6/7    (85.71%)  ->     6/8    (75.00%) 
--- new_col            -/-       (-)    ->     0/1     (0.00%) 
-==============================================================
+=========================================================================
+Catalog                         15/38   (39.47%)  ->    15/39   (38.46%) 
+=========================================================================
+- jaffle_shop.customers          6/7    (85.71%)  ->     6/8    (75.00%) 
+-- new_col                       -/-       (-)    ->     0/1     (0.00%) 
+=========================================================================
 ```
 
 ### Combined use-case
