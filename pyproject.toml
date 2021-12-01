@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dbt-coverage"
-version = "0.1.5"
+version = "0.1.6"
 description = "A package for computing coverage of dbt-managed data warehouses"
 authors = ["Andrej Švec <asvec@slido.com>"]
 readme = 'README.md'
