@@ -21,7 +21,7 @@ Keeping documentation and tests close to the actual SQL code that generates the 
 
 That is exactly where `dbt-coverage` comes in. It will
 
-- Give you a better sense of how well is your project documented and covered with tests;
+- Give you a better sense of the level of documentation and test coverage in your project;
 - Help your CI/CD pipeline make sure new changes include documentation and tests;
 - Let you quickly assess the documentation and tests of a new `dbt` project you get your hands on.
 
