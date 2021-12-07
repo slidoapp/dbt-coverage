@@ -50,7 +50,7 @@ Compute coverage from `target/catalog.json` and `target/manifest.json` files
 found in a dbt project, e.g.
 [jaffle_shop](https://github.com/dbt-labs/jaffle_shop). 
 
-To select documentation or test coverage, pass `doc` or `test` as the CLI argument.
+To choose between documentation and test coverage, pass `doc` or `test` as the CLI argument.
 
 ```console
 $ cd jaffle_shop
