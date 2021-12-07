@@ -17,7 +17,7 @@ _**[`dbt-coverage`](https://github.com/slidoapp/dbt-coverage) is to [`dbt`](http
 
 It is a single CLI tool which checks your `dbt` project for missing docstrings and tests.
 
-Keeping tests and documentation close to the actual SQL code that generates the final model is one of the best design choices of `dbt`. It ensures tests are actually used and documentation is actually useful. But how do you make adding those a habit in your [`dbt`](https://github.com/dbt-labs/dbt) project?
+Keeping documentation and tests close to the actual SQL code that generates the final model is one of the best design choices of `dbt`. It ensures documentation is actually useful and tests are actually used. But how do you make adding those a habit in your [`dbt`](https://github.com/dbt-labs/dbt) project?
 
 That is exactly where `dbt-coverage` comes in. It will
 
