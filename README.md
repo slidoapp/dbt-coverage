@@ -15,7 +15,7 @@ _One-stop-shop for docs and test coverage of [`dbt`](https://github.com/dbt-labs
 
 _**[`dbt-coverage`](https://github.com/slidoapp/dbt-coverage) is to [`dbt`](https://github.com/dbt-labs/dbt) what [`coverage.py`](https://github.com/nedbat/coveragepy) and [`interrogate`](https://interrogate.readthedocs.io/en/latest/) are to Python.**_
 
-It is a single CLI tool which checks your `dbt` project for missing docstrings and tests.
+It is a single CLI tool which checks your `dbt` project for missing documentation and tests.
 
 Keeping documentation and tests close to the actual SQL code that generates the final model is one of the best design choices of `dbt`. It ensures documentation is actually useful and tests are actually used. But how do you make adding those a habit in your [`dbt`](https://github.com/dbt-labs/dbt) project?
 
