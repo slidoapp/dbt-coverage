@@ -119,8 +119,9 @@ class Manifest:
             else:
                 table_id = depends_on[0]
             table_name = id_to_table_name[table_id]
-            column_name = node['column_name'] or node['test_metadata']['kwargs']['column_name'] \
-                or node['test_metadata']['kwargs']['arg']
+            column_name = node.get('column_name') \
+                or node['test_metadata']['kwargs'].get('column_name') \
+                or node['test_metadata']['kwargs'].get('arg')
 
             if not column_name:
                 continue
