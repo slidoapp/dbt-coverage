@@ -84,27 +84,34 @@ class Manifest:
     tests: Dict[str, Dict[str, List[Dict]]]
 
     @classmethod
-    def from_nodes(cls, manifest_nodes: Dict[str: Dict]) -> Manifest:
-        def full_table_name(table):
-            return f'{table["schema"]}.{table["name"]}'.lower()
-
-        def normalize_column_names(columns):
-            for col in columns.values():
-                col['name'] = col['name'].lower()
-            return {col['name']: col for col in columns.values()}
+    def from_nodes(cls, manifest_nodes: Dict[str, Dict]) -> Manifest:
+        """Constructs a ``Manifest`` by parsing from manifest.json nodes."""
 
         sources = [table for table in manifest_nodes.values()
                    if table['resource_type'] == 'source']
-        sources = {full_table_name(table): normalize_column_names(table['columns'])
+        sources = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
                    for table in sources}
 
         models = [table for table in manifest_nodes.values() if table['resource_type'] == 'model']
-        models = {full_table_name(table): normalize_column_names(table['columns'])
+        models = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
                   for table in models}
 
-        id_to_table_name = {table_id: full_table_name(table)
+        tests = cls._parse_tests(manifest_nodes)
+
+        return Manifest(sources, models, tests)
+
+    @classmethod
+    def _parse_tests(cls, manifest_nodes: Dict[str, Dict]) -> Dict[str, Dict[str, List[Dict]]]:
+        """Parses tests from manifest.json nodes.
+
+        The logic is taken from the dbt-docs official source code:
+        https://github.com/dbt-labs/dbt-docs/blob/da84e95ab9febde3127ed28ff698516b2a610532/src/app/services/project_service.js#L149-L215
+        """
+
+        id_to_table_name = {table_id: cls._full_table_name(table)
                             for table_id, table in manifest_nodes.items()
                             if table['resource_type'] in ['source', 'model']}
+
         tests = {}
         for node in manifest_nodes.values():
             if node['resource_type'] != 'test' or 'schema' not in node['tags']:
@@ -115,14 +122,14 @@ class Manifest:
                 continue
 
             if node['test_metadata']['name'] == 'relationships':
-                table_id = depends_on[len(depends_on) - 1]
+                table_id = depends_on[-1]
             else:
                 table_id = depends_on[0]
             table_name = id_to_table_name[table_id]
+
             column_name = node.get('column_name') \
                 or node['test_metadata']['kwargs'].get('column_name') \
                 or node['test_metadata']['kwargs'].get('arg')
-
             if not column_name:
                 continue
 
@@ -131,7 +138,17 @@ class Manifest:
             column_tests = table_tests.setdefault(column_name, [])
             column_tests.append(node)
 
-        return Manifest(sources, models, tests)
+        return tests
+
+    @staticmethod
+    def _full_table_name(table):
+        return f'{table["schema"]}.{table["name"]}'.lower()
+
+    @staticmethod
+    def _normalize_column_names(columns):
+        for col in columns.values():
+            col['name'] = col['name'].lower()
+        return {col['name']: col for col in columns.values()}
 
 
 @dataclass
