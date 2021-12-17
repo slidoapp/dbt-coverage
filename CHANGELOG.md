@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ## Fixed
 - `manifest.json` parsing.
+- Take seeds into account.
 
 ## [0.1.7] - 2021-12-09
 ### Changed

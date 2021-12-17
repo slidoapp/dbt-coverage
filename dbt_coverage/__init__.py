@@ -81,6 +81,7 @@ class Catalog:
 class Manifest:
     sources: Dict[str, Dict[str, Dict]]
     models: Dict[str, Dict[str, Dict]]
+    seeds: Dict[str, Dict[str, Dict]]
     tests: Dict[str, Dict[str, List[Dict]]]
 
     @classmethod
@@ -96,9 +97,13 @@ class Manifest:
         models = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
                   for table in models}
 
+        seeds = [table for table in manifest_nodes.values() if table['resource_type'] == 'seed']
+        seeds = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
+                 for table in seeds}
+
         tests = cls._parse_tests(manifest_nodes)
 
-        return Manifest(sources, models, tests)
+        return Manifest(sources, models, seeds, tests)
 
     @classmethod
     def _parse_tests(cls, manifest_nodes: Dict[str, Dict]) -> Dict[str, Dict[str, List[Dict]]]:
@@ -110,7 +115,7 @@ class Manifest:
 
         id_to_table_name = {table_id: cls._full_table_name(table)
                             for table_id, table in manifest_nodes.items()
-                            if table['resource_type'] in ['source', 'model']}
+                            if table['resource_type'] in ['source', 'model', 'seed']}
 
         tests = {}
         for node in manifest_nodes.values():
@@ -507,14 +512,18 @@ def load_files(project_dir: Path) -> Catalog:
         catalog_table = catalog.get_table(table_name)
         manifest_source_table = manifest.sources.get(table_name, {})
         manifest_model_table = manifest.models.get(table_name, {})
+        manifest_seed_table = manifest.seeds.get(table_name, {})
         manifest_table_tests = manifest.tests.get(table_name, {})
 
         for catalog_column in catalog_table.columns.values():
             manifest_source_column = manifest_source_table.get(catalog_column.name)
             manifest_model_column = manifest_model_table.get(catalog_column.name)
+            manifest_seed_column = manifest_seed_table.get(catalog_column.name)
             manifest_column_tests = manifest_table_tests.get(catalog_column.name)
 
-            doc = (manifest_source_column or manifest_model_column or {}).get('description')
+            manifest_column = manifest_source_column or manifest_model_column \
+                or manifest_seed_column or {}
+            doc = manifest_column.get('description')
             catalog_column.doc = Column.is_valid_doc(doc)
             catalog_column.test = Column.is_valid_test(manifest_column_tests)
 
