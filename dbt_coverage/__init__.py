@@ -101,10 +101,11 @@ class Manifest:
         seeds = [table for table in manifest_nodes.values() if table['resource_type'] == 'seed']
         seeds = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
                  for table in seeds}
-        
-        snapshots = [table for table in manifest_nodes.values() if table['resource_type'] == 'snapshot']
+
+        snapshots = [table for table in manifest_nodes.values()
+                     if table['resource_type'] == 'snapshot']
         snapshots = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
-                 for table in snapshots}
+                     for table in snapshots}
 
         tests = cls._parse_tests(manifest_nodes)
 
