@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
 
 
-class CoverageType(str, Enum):
+class CoverageType(Enum):
     DOC = 'doc'
     TEST = 'test'
 
@@ -300,7 +300,7 @@ class CoverageReport:
             }
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             return {
-                'cov_type': self.cov_type,
+                'cov_type': self.cov_type.value,
                 'covered': len(self.covered),
                 'total': len(self.total),
                 'coverage': self.coverage,
@@ -557,7 +557,7 @@ def compare_reports(report, compare_report):
 def read_coverage_report(path: Path):
     with open(path) as f:
         report = json.load(f)
-    report = CoverageReport.from_dict(report, CoverageType[report['cov_type'].upper()])
+    report = CoverageReport.from_dict(report, CoverageType(report['cov_type']))
 
     return report
 
