@@ -5,15 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-## Changed
+
+## [0.1.10] - 2022-03-03
+### Changed
 - Simplify `CoverageType` enum
 
 ## [0.1.9] - 2022-01-20
-## Added
+### Added
 - Support for snapshots.
 
 ## [0.1.8] - 2021-12-21
-## Fixed
+### Fixed
 - `manifest.json` parsing.
 - Take seeds into account.
 
