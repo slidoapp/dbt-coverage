@@ -12,6 +12,8 @@ import typer
 
 logging.basicConfig(level=logging.INFO)
 
+SUPPORTED_MANIFEST_SCHEMA_VERSION = 'https://schemas.getdbt.com/dbt/manifest/v4.json'
+
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
 
 
@@ -116,7 +118,7 @@ class Manifest:
         """Parses tests from manifest.json nodes.
 
         The logic is taken from the dbt-docs official source code:
-        https://github.com/dbt-labs/dbt-docs/blob/da84e95ab9febde3127ed28ff698516b2a610532/src/app/services/project_service.js#L149-L215
+        https://github.com/dbt-labs/dbt-docs/blob/02731092389b18d69649fdc322d969b5d5b61b20/src/app/services/project_service.js#L155-L221
         """
 
         id_to_table_name = {table_id: cls._full_table_name(table)
@@ -125,7 +127,7 @@ class Manifest:
 
         tests = {}
         for node in manifest_nodes.values():
-            if node['resource_type'] != 'test' or 'schema' not in node['tags']:
+            if node['resource_type'] != 'test' or 'test_metadata' not in node:
                 continue
 
             depends_on = node['depends_on']['nodes']
@@ -486,6 +488,17 @@ class CoverageDiff:
         return buf.getvalue()
 
 
+def check_manifest_version(manifest_json):
+    manifest_version = manifest_json['metadata']['dbt_schema_version']
+    if manifest_version != SUPPORTED_MANIFEST_SCHEMA_VERSION:
+        logging.warning(
+            "Unsupported manifest.json version %s, unexpected behavior can occur. Supported "
+            "version: %s. See "
+            "https://github.com/slidoapp/dbt-coverage/tree/main#supported-dbt-versions for more "
+            "details.", manifest_version, SUPPORTED_MANIFEST_SCHEMA_VERSION
+        )
+
+
 def load_catalog(project_dir: Path) -> Catalog:
     with open(project_dir / 'target/catalog.json') as f:
         catalog_json = json.load(f)
@@ -501,6 +514,8 @@ def load_catalog(project_dir: Path) -> Catalog:
 def load_manifest(project_dir: Path) -> Manifest:
     with open(project_dir / 'target/manifest.json') as f:
         manifest_json = json.load(f)
+
+    check_manifest_version(manifest_json)
 
     manifest_nodes = {**manifest_json['sources'], **manifest_json['nodes']}
     manifest = Manifest.from_nodes(manifest_nodes)
