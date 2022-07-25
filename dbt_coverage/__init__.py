@@ -12,7 +12,10 @@ import typer
 
 logging.basicConfig(level=logging.INFO)
 
-SUPPORTED_MANIFEST_SCHEMA_VERSION = 'https://schemas.getdbt.com/dbt/manifest/v4.json'
+SUPPORTED_MANIFEST_SCHEMA_VERSIONS = [
+    'https://schemas.getdbt.com/dbt/manifest/v4.json',
+    'https://schemas.getdbt.com/dbt/manifest/v5.json'
+]
 
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
 
@@ -490,12 +493,12 @@ class CoverageDiff:
 
 def check_manifest_version(manifest_json):
     manifest_version = manifest_json['metadata']['dbt_schema_version']
-    if manifest_version != SUPPORTED_MANIFEST_SCHEMA_VERSION:
+    if manifest_version not in SUPPORTED_MANIFEST_SCHEMA_VERSIONS:
         logging.warning(
             "Unsupported manifest.json version %s, unexpected behavior can occur. Supported "
-            "version: %s. See "
+            "versions: %s. See "
             "https://github.com/slidoapp/dbt-coverage/tree/main#supported-dbt-versions for more "
-            "details.", manifest_version, SUPPORTED_MANIFEST_SCHEMA_VERSION
+            "details.", manifest_version, SUPPORTED_MANIFEST_SCHEMA_VERSIONS
         )
 
 
