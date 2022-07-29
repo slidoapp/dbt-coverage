@@ -14,7 +14,8 @@ logging.basicConfig(level=logging.INFO)
 
 SUPPORTED_MANIFEST_SCHEMA_VERSIONS = [
     'https://schemas.getdbt.com/dbt/manifest/v4.json',
-    'https://schemas.getdbt.com/dbt/manifest/v5.json'
+    'https://schemas.getdbt.com/dbt/manifest/v5.json',
+    'https://schemas.getdbt.com/dbt/manifest/v6.json',
 ]
 
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
