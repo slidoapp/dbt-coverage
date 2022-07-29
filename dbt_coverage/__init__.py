@@ -625,6 +625,8 @@ def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.
     if cov_fail_compare is not None:
         fail_compare(coverage_report, cov_fail_compare)
 
+    return coverage_report
+
 
 def do_compare(report: Path, compare_report: Path):
     """
@@ -654,7 +656,7 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
                                                              "tests.")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
-    do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare)
+    return do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare)
 
 
 @app.command()
