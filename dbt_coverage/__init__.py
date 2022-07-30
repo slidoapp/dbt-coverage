@@ -503,11 +503,11 @@ def check_manifest_version(manifest_json):
         )
 
 
-def load_catalog(project_dir: Path, run_artifact_dir: Path) -> Catalog:
-    if run_artifact_dir is None:
+def load_catalog(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
+    if run_artifacts_dir is None:
         catalog_path = project_dir / 'target/catalog.json'
     else:
-        catalog_path = run_artifact_dir / 'catalog.json'
+        catalog_path = run_artifacts_dir / 'catalog.json'
 
     with open(catalog_path) as f:
         catalog_json = json.load(f)
