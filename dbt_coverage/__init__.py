@@ -503,8 +503,13 @@ def check_manifest_version(manifest_json):
         )
 
 
-def load_catalog(project_dir: Path) -> Catalog:
-    with open(project_dir / 'target/catalog.json') as f:
+def load_catalog(project_dir: Path, run_artifact_dir: Path) -> Catalog:
+    if run_artifact_dir is None:
+        catalog_path = project_dir / 'target/catalog.json'
+    else:
+        catalog_path = run_artifact_dir / 'catalog.json'
+
+    with open(catalog_path) as f:
         catalog_json = json.load(f)
 
     catalog_nodes = {**catalog_json['sources'], **catalog_json['nodes']}
@@ -515,8 +520,13 @@ def load_catalog(project_dir: Path) -> Catalog:
     return catalog
 
 
-def load_manifest(project_dir: Path) -> Manifest:
-    with open(project_dir / 'target/manifest.json') as f:
+def load_manifest(project_dir: Path, run_artifacts_dir: Path) -> Manifest:
+    if run_artifacts_dir is None:
+        manifest_path = project_dir / 'target/manifest.json'
+    else:
+        manifest_path = run_artifacts_dir / 'manifest.json'
+
+    with open(manifest_path) as f:
         manifest_json = json.load(f)
 
     check_manifest_version(manifest_json)
@@ -527,11 +537,11 @@ def load_manifest(project_dir: Path) -> Manifest:
     return manifest
 
 
-def load_files(project_dir: Path) -> Catalog:
+def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
     logging.info("Loading catalog and manifest files from project dir: %s", project_dir)
 
-    catalog = load_catalog(project_dir)
-    manifest = load_manifest(project_dir)
+    catalog = load_catalog(project_dir, run_artifacts_dir)
+    manifest = load_manifest(project_dir, run_artifacts_dir)
 
     for table_name in catalog.tables:
         catalog_table = catalog.get_table(table_name)
@@ -604,8 +614,9 @@ def fail_compare(coverage_report: CoverageReport, compare_path: Path):
                            f"{diff.after.coverage:.2%}")
 
 
-def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.json'),
-               cov_type: CoverageType = CoverageType.DOC, cov_fail_under: float = None,
+def do_compute(project_dir: Path = Path('.'), run_artifacts_dir: Path = None,
+               cov_report: Path = Path('coverage.json'), cov_type: CoverageType = CoverageType.DOC,
+               cov_fail_under: float = None,
                cov_fail_compare: Path = None):
     """
     Computes coverage for a dbt project.
@@ -613,7 +624,7 @@ def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.
     Use this method in your Python code to bypass typer.
     """
 
-    catalog = load_files(project_dir)
+    catalog = load_files(project_dir, run_artifacts_dir)
     coverage_report = compute_coverage(catalog, cov_type)
 
     print(coverage_report.to_formatted_string())
@@ -646,6 +657,8 @@ def do_compare(report: Path, compare_report: Path):
 
 @app.command()
 def compute(project_dir: Path = typer.Option('.', help="dbt project directory path."),
+            run_artifacts_dir: Path = typer.Option(None, help="custom directory path for "
+                                                              "catalog and manifest files"),
             cov_report: Path = typer.Option('coverage.json', help="Output coverage report path."),
             cov_type: CoverageType = typer.Argument(..., help="Type of coverage to compute."),
             cov_fail_under: float = typer.Option(None, help="Fail if coverage is lower than "
@@ -657,7 +670,8 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
                                                              "tests.")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
-    return do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare)
+    return do_compute(project_dir, run_artifacts_dir, cov_report, cov_type, cov_fail_under,
+                      cov_fail_compare)
 
 
 @app.command()
