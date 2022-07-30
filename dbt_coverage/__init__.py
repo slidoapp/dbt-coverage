@@ -538,7 +538,10 @@ def load_manifest(project_dir: Path, run_artifacts_dir: Path) -> Manifest:
 
 
 def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
-    logging.info("Loading catalog and manifest files from project dir: %s", project_dir)
+    if run_artifacts_dir is None:
+        logging.info("Loading catalog and manifest files from project dir: %s", project_dir)
+    else:
+        logging.info("Loading catalog and manifest files from custom dir: %s", run_artifacts_dir)
 
     catalog = load_catalog(project_dir, run_artifacts_dir)
     manifest = load_manifest(project_dir, run_artifacts_dir)
