@@ -505,7 +505,11 @@ def check_manifest_version(manifest_json):
 
 
 def load_catalog(project_dir: Path) -> Catalog:
-    with open(project_dir / 'target/catalog.json') as f:
+    catalog_path = project_dir / 'target/catalog.json'
+    if not catalog_path.exists():
+        raise FileNotFoundError("target/catalog.json not found - "
+                                "before using dbt-coverage, run: dbt docs generate")
+    with open(catalog_path) as f:
         catalog_json = json.load(f)
 
     catalog_nodes = {**catalog_json['sources'], **catalog_json['nodes']}
@@ -517,7 +521,12 @@ def load_catalog(project_dir: Path) -> Catalog:
 
 
 def load_manifest(project_dir: Path) -> Manifest:
-    with open(project_dir / 'target/manifest.json') as f:
+    manifest_path = project_dir / 'target/manifest.json'
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"target/manifest.json not found - "
+                                 "before using dbt-coverage, run a dbt command that creates manifest artifact "
+                                 "(see: https://docs.getdbt.com/reference/artifacts/manifest-json)")
+    with open(manifest_path) as f:
         manifest_json = json.load(f)
 
     check_manifest_version(manifest_json)
