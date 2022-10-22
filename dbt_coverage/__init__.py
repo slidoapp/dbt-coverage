@@ -101,28 +101,28 @@ class Manifest:
                    if table['resource_type'] == 'source']
         sources = {cls._full_table_name(table): {
             'columns': cls._normalize_column_names(table['columns']),
-            'original_file_path': cls._normalize_path(table.get('original_file_path')),
-            'unique_id': table.get('unique_id')} for table in sources}
+            'original_file_path': cls._normalize_path(table['original_file_path']),
+            'unique_id': table['unique_id']} for table in sources}
 
         models = [table for table in manifest_nodes.values()
                   if table['resource_type'] == 'model']
         models = {cls._full_table_name(table): {
             'columns': cls._normalize_column_names(table['columns']),
-            'original_file_path': cls._normalize_path(table.get('original_file_path')),
-            'unique_id': table.get('unique_id')} for table in models}
+            'original_file_path': cls._normalize_path(table['original_file_path']),
+            'unique_id': table['unique_id']} for table in models}
 
         seeds = [table for table in manifest_nodes.values() if table['resource_type'] == 'seed']
         seeds = {cls._full_table_name(table): {
             'columns': cls._normalize_column_names(table['columns']),
-            'original_file_path': cls._normalize_path(table.get('original_file_path')),
-            'unique_id': table.get('unique_id')} for table in seeds}
+            'original_file_path': cls._normalize_path(table['original_file_path']),
+            'unique_id': table['unique_id']} for table in seeds}
 
         snapshots = [table for table in manifest_nodes.values()
                      if table['resource_type'] == 'snapshot']
         snapshots = {cls._full_table_name(table): {
             'columns': cls._normalize_column_names(table['columns']),
-            'original_file_path': cls._normalize_path(table.get('original_file_path')),
-            'unique_id': table.get('unique_id')} for table in snapshots}
+            'original_file_path': cls._normalize_path(table['original_file_path']),
+            'unique_id': table['unique_id']} for table in snapshots}
 
         tests = cls._parse_tests(manifest_nodes)
 
