@@ -55,6 +55,7 @@ class Table:
     """Dataclass containing the information about a database table and its columns."""
 
     name: str
+    unique_id: str
     columns: Dict[str, Column]
 
     @staticmethod
@@ -62,7 +63,7 @@ class Table:
         columns = [Column.from_node(col) for col in node['columns'].values()]
         return Table(
             f"{node['metadata']['schema']}.{node['metadata']['name']}".lower(),
-            {col.name: col for col in columns}
+            node['unique_id'], {col.name: col for col in columns}
         )
 
     def get_column(self, column_name):
