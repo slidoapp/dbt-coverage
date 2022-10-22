@@ -5,7 +5,7 @@ import json
 import logging
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Dict, Set, List, Optional
 
 import typer
@@ -86,10 +86,10 @@ class Catalog:
 
 @dataclass
 class Manifest:
-    sources: Dict[str, Dict[str, Dict]]
-    models: Dict[str, Dict[str, Dict]]
-    seeds: Dict[str, Dict[str, Dict]]
-    snapshots: Dict[str, Dict[str, Dict]]
+    sources: Dict[str, Dict[str, Dict[str, Dict]]]
+    models: Dict[str, Dict[str, Dict[str, Dict]]]
+    seeds: Dict[str, Dict[str, Dict[str, Dict]]]
+    snapshots: Dict[str, Dict[str, Dict[str, Dict]]]
     tests: Dict[str, Dict[str, List[Dict]]]
 
     @classmethod
@@ -98,21 +98,30 @@ class Manifest:
 
         sources = [table for table in manifest_nodes.values()
                    if table['resource_type'] == 'source']
-        sources = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
-                   for table in sources}
+        sources = {cls._full_table_name(table): {
+            'columns': cls._normalize_column_names(table['columns']),
+            'original_file_path': cls._normalize_path(table.get('original_file_path')),
+            'unique_id': table.get('unique_id')} for table in sources}
 
-        models = [table for table in manifest_nodes.values() if table['resource_type'] == 'model']
-        models = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
-                  for table in models}
+        models = [table for table in manifest_nodes.values()
+                  if table['resource_type'] == 'model']
+        models = {cls._full_table_name(table): {
+            'columns': cls._normalize_column_names(table['columns']),
+            'original_file_path': cls._normalize_path(table.get('original_file_path')),
+            'unique_id': table.get('unique_id')} for table in models}
 
         seeds = [table for table in manifest_nodes.values() if table['resource_type'] == 'seed']
-        seeds = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
-                 for table in seeds}
+        seeds = {cls._full_table_name(table): {
+            'columns': cls._normalize_column_names(table['columns']),
+            'original_file_path': cls._normalize_path(table.get('original_file_path')),
+            'unique_id': table.get('unique_id')} for table in seeds}
 
         snapshots = [table for table in manifest_nodes.values()
                      if table['resource_type'] == 'snapshot']
-        snapshots = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
-                     for table in snapshots}
+        snapshots = {cls._full_table_name(table): {
+            'columns': cls._normalize_column_names(table['columns']),
+            'original_file_path': cls._normalize_path(table.get('original_file_path')),
+            'unique_id': table.get('unique_id')} for table in snapshots}
 
         tests = cls._parse_tests(manifest_nodes)
 
@@ -167,6 +176,10 @@ class Manifest:
         for col in columns.values():
             col['name'] = col['name'].lower()
         return {col['name']: col for col in columns.values()}
+
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        return str(PurePath(path).as_posix())
 
 
 @dataclass
