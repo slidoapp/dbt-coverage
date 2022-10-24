@@ -96,6 +96,30 @@ class Catalog:
 
     tables: Dict[str, Table]
 
+    def filter_catalog(self, *model_path: str) -> Catalog:
+        """
+        Filter ``Catalog``'s ``tables`` to those that have ``model_path`` as part of their ``original_file_path``.
+
+        :param model_path: the model_path string(s) to filter tables on, (uses the ``in`` operator)
+        :returns: Catalog
+        :raises ValueError: if no tables in the Catalog have an ``original_file_path`` that contains the ``model_path``
+        """
+        filtered_tables = {}
+
+        original_tables_dict = {key: val for key, val in self.tables.items()}
+        for key, table in original_tables_dict.items():
+            for path in model_path:
+                if path in table.original_file_path:
+                    filtered_tables[key] = table
+                    break
+
+        if len(filtered_tables) < 1:
+            logging.error("len(filtered_tables) < 1", exc_info=True)
+            raise ValueError(
+                "After filtering the Catalog contains no tables. Ensure your model_path is correct")
+        else:
+            return Catalog(tables=filtered_tables)
+
     @staticmethod
     def from_nodes(nodes):
         tables = [Table.from_node(table) for table in nodes]
