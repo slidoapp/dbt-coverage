@@ -56,6 +56,7 @@ class Table:
 
     name: str
     unique_id: str
+    original_file_path: None
     columns: Dict[str, Column]
 
     @staticmethod
@@ -63,8 +64,27 @@ class Table:
         columns = [Column.from_node(col) for col in node['columns'].values()]
         return Table(
             f"{node['metadata']['schema']}.{node['metadata']['name']}".lower(),
-            node['unique_id'], {col.name: col for col in columns}
+            node['unique_id'], None, {col.name: col for col in columns}
         )
+
+    def update_original_file_path(self, manifest: Manifest) -> None:
+        """
+        Update Table's ``original_file_path`` by retrieving this information from a Manifest.
+
+        :param manifest: the Manifest used which contains the original_file_path for a Table
+        :returns: None
+        """
+        old_original_file_path_value = self.original_file_path
+
+        manifest_attributes = vars(manifest)
+        for attribute_type_name, attribute_type_dict in manifest_attributes.items():
+            for attribute_instance_name, attribute_instance in attribute_type_dict.items():
+                if self.unique_id in attribute_instance.values():
+                    self.original_file_path = attribute_instance['original_file_path']
+
+        if self.original_file_path is None or self.original_file_path == \
+                old_original_file_path_value:
+            logging.info(f"original_file_path value not found in manifest for {self.unique_id}")
 
     def get_column(self, column_name):
         return self.columns.get(column_name)
@@ -559,6 +579,7 @@ def load_files(project_dir: Path) -> Catalog:
 
     for table_name in catalog.tables:
         catalog_table = catalog.get_table(table_name)
+        catalog_table.update_original_file_path(manifest)
         manifest_source_table = manifest.sources.get(table_name, {})
         manifest_model_table = manifest.models.get(table_name, {})
         manifest_seed_table = manifest.seeds.get(table_name, {})
