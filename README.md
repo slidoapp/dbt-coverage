@@ -112,7 +112,7 @@ jaffle_shop.stg_customers              0/3       0.0%
 jaffle_shop.stg_orders                 0/4       0.0%
 jaffle_shop.stg_payments               0/4       0.0%
 ======================================================
-Total                                   0/20      0.0%
+Total                                  0/20      0.0%
 
 $ dbt-coverage compute doc --cov-report coverage-doc.json --model-path-filter models/orders.sql --model-path-filter staging/  # Compute doc coverage for a subset of tables, print it and write it to coverage-doc.json file
 
@@ -123,7 +123,7 @@ jaffle_shop.stg_customers              0/3       0.0%
 jaffle_shop.stg_orders                 0/4       0.0%
 jaffle_shop.stg_payments               0/4       0.0%
 ======================================================
-Total                                   0/20      0.0%
+Total                                  0/20      0.0%
 ```
 
 ### Compare
