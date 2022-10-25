@@ -69,9 +69,10 @@ class Table:
 
     def update_original_file_path(self, manifest: Manifest) -> None:
         """
-        Update Table's ``original_file_path`` by retrieving this information from a Manifest.
+        Update Table's ``original_file_path`` attribute by retrieving this information from a
+        Manifest.
 
-        :param manifest: the Manifest used which contains the original_file_path for a Table
+        :param manifest: the Manifest used which contains the ``original_file_path`` for a Table
         :returns: None
         """
         old_original_file_path_value = self.original_file_path
@@ -98,11 +99,15 @@ class Catalog:
 
     def filter_catalog(self, model_path_filter: List[str]) -> Catalog:
         """
-        Filter ``Catalog``'s ``tables`` to those that have ``model_path_filter`` as part of their ``original_file_path``.
+        Filter ``Catalog``'s ``tables`` attribute to ``Tables`` that have a ``model_path_filter``
+        value as part of their ``original_file_path``.
 
-        :param model_path_filter: the model_path string(s) to filter tables on, (uses the ``in`` operator)
+        :param model_path_filter: the model_path string(s) to filter tables on, (matches using
+        the ``in`` operator)
+
         :returns: Catalog
-        :raises ValueError: if no tables in the Catalog have an ``original_file_path`` that contains the ``model_path_filter``
+        :raises ValueError: if no ``Table`` in the ``tables`` Catalog attribute have an
+        ``original_file_path`` that contains any ``model_path_filter`` value
         """
         filtered_tables = {}
 
