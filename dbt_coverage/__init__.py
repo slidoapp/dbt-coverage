@@ -96,19 +96,19 @@ class Catalog:
 
     tables: Dict[str, Table]
 
-    def filter_catalog(self, *model_path: str) -> Catalog:
+    def filter_catalog(self, model_path_filter: List[str]) -> Catalog:
         """
-        Filter ``Catalog``'s ``tables`` to those that have ``model_path`` as part of their ``original_file_path``.
+        Filter ``Catalog``'s ``tables`` to those that have ``model_path_filter`` as part of their ``original_file_path``.
 
-        :param model_path: the model_path string(s) to filter tables on, (uses the ``in`` operator)
+        :param model_path_filter: the model_path string(s) to filter tables on, (uses the ``in`` operator)
         :returns: Catalog
-        :raises ValueError: if no tables in the Catalog have an ``original_file_path`` that contains the ``model_path``
+        :raises ValueError: if no tables in the Catalog have an ``original_file_path`` that contains the ``model_path_filter``
         """
         filtered_tables = {}
 
         original_tables_dict = {key: val for key, val in self.tables.items()}
         for key, table in original_tables_dict.items():
-            for path in model_path:
+            for path in model_path_filter:
                 if path in table.original_file_path:
                     filtered_tables[key] = table
                     break
@@ -116,8 +116,11 @@ class Catalog:
         if len(filtered_tables) < 1:
             logging.error("len(filtered_tables) < 1", exc_info=True)
             raise ValueError(
-                "After filtering the Catalog contains no tables. Ensure your model_path is correct")
+                "After filtering the Catalog contains no tables. Ensure your model_path_filter "
+                "is correct")
         else:
+            logging.info("Successfully filtered tables. Total tables: %d tables", len(self.tables))
+
             return Catalog(tables=filtered_tables)
 
     @staticmethod
@@ -666,7 +669,7 @@ def fail_compare(coverage_report: CoverageReport, compare_path: Path):
 
 def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.json'),
                cov_type: CoverageType = CoverageType.DOC, cov_fail_under: float = None,
-               cov_fail_compare: Path = None):
+               cov_fail_compare: Path = None, model_path_filter: Optional[List[str]] = None):
     """
     Computes coverage for a dbt project.
 
@@ -674,6 +677,10 @@ def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.
     """
 
     catalog = load_files(project_dir)
+
+    if model_path_filter is not None:
+        catalog = catalog.filter_catalog(model_path_filter)
+
     coverage_report = compute_coverage(catalog, cov_type)
 
     print(coverage_report.to_formatted_string())
@@ -714,10 +721,15 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
                                                              "with and fail if current coverage "
                                                              "is lower. Normally used to prevent "
                                                              "coverage drop between subsequent "
-                                                             "tests.")):
+                                                             "tests."),
+            model_path_filter: Optional[List[str]] = typer.Option(None, help="The model_path "
+                                                                             "string(s) to "
+                                                                             "filter tables "
+                                                                             "on.")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
-    return do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare)
+    return do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare,
+                      model_path_filter)
 
 
 @app.command()
