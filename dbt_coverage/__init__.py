@@ -687,7 +687,7 @@ def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.
 
     catalog = load_files(project_dir)
 
-    if model_path_filter is not None:
+    if len(model_path_filter) >= 1:
         catalog = catalog.filter_catalog(model_path_filter)
 
     coverage_report = compute_coverage(catalog, cov_type)
