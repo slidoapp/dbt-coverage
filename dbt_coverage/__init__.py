@@ -693,7 +693,6 @@ def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.
 
     catalog = load_files(project_dir)
 
-    # TODO: Adjust len() to is not None after https://github.com/tiangolo/typer/issues/410 resolved
     if len(model_path_filter) >= 1:
         catalog = catalog.filter_catalog(model_path_filter)
 
