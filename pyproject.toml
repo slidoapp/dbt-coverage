@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dbt-coverage"
-version = "0.2.2"
+version = "0.2.3"
 description = "One-stop-shop for docs and test coverage of dbt projects"
 authors = ["Andrej Švec <asvec@slido.com>"]
 readme = 'README.md'

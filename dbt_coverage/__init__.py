@@ -16,6 +16,7 @@ SUPPORTED_MANIFEST_SCHEMA_VERSIONS = [
     'https://schemas.getdbt.com/dbt/manifest/v4.json',
     'https://schemas.getdbt.com/dbt/manifest/v5.json',
     'https://schemas.getdbt.com/dbt/manifest/v6.json',
+    'https://schemas.getdbt.com/dbt/manifest/v7.json',
 ]
 
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
@@ -509,6 +510,10 @@ def load_catalog(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
     else:
         catalog_path = run_artifacts_dir / 'catalog.json'
 
+    if not catalog_path.exists():
+        raise FileNotFoundError("catalog.json not found in target/ or in custom path - "
+                                "before using dbt-coverage, run: dbt docs generate")
+
     with open(catalog_path) as f:
         catalog_json = json.load(f)
 
@@ -525,6 +530,11 @@ def load_manifest(project_dir: Path, run_artifacts_dir: Path) -> Manifest:
         manifest_path = project_dir / 'target/manifest.json'
     else:
         manifest_path = run_artifacts_dir / 'manifest.json'
+
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"manifest.json not found in target or in custom path - "
+                                "before using dbt-coverage, run a dbt command that creates manifest artifact "
+                                "(see: https://docs.getdbt.com/reference/artifacts/manifest-json)")
 
     with open(manifest_path) as f:
         manifest_json = json.load(f)
