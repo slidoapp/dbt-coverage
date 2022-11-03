@@ -124,7 +124,8 @@ class Catalog:
                 "After filtering the Catalog contains no tables. Ensure your model_path_filter "
                 "is correct")
         else:
-            logging.info("Successfully filtered tables. Total tables: %d tables", len(self.tables))
+            logging.info("Successfully filtered tables. Total tables post-filtering: %d tables",
+                         len(filtered_tables))
 
             return Catalog(tables=filtered_tables)
 
