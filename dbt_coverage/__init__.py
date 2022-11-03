@@ -99,11 +99,11 @@ class Catalog:
 
     def filter_catalog(self, model_path_filter: List[str]) -> Catalog:
         """
-        Filter ``Catalog``'s ``tables`` attribute to ``Tables`` that have a ``model_path_filter``
-        value as part of their ``original_file_path``.
+        Filter ``Catalog``'s ``tables`` attribute to ``Tables`` that have the``model_path_filter``
+        value at the start of their ``original_file_path``.
 
         :param model_path_filter: the model_path string(s) to filter tables on, (matches using
-        the ``in`` operator)
+        the ``startswith`` operator)
 
         :returns: Catalog
         :raises ValueError: if no ``Table`` in the ``tables`` Catalog attribute have an
@@ -114,7 +114,7 @@ class Catalog:
         original_tables_dict = {key: val for key, val in self.tables.items()}
         for key, table in original_tables_dict.items():
             for path in model_path_filter:
-                if path in table.original_file_path:
+                if table.original_file_path.startswith(path):
                     filtered_tables[key] = table
                     break
 
