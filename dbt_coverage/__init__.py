@@ -5,7 +5,7 @@ import json
 import logging
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Dict, Set, List, Optional
 
 import typer
@@ -232,7 +232,7 @@ class Manifest:
 
     @staticmethod
     def _normalize_path(path: str) -> str:
-        return str(PurePath(path).as_posix())
+        return str(Path(path).as_posix())
 
 
 @dataclass
