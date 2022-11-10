@@ -301,7 +301,7 @@ class CoverageReport:
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_formatted_string() + "\n")
             buf.write('=' * 69 + "\n")
-            buf.write(f"{'Total':70} {len(self.covered):5}/{len(self.total):<5} "
+            buf.write(f"{'Total':50} {len(self.covered):5}/{len(self.total):<5} "
                       f"{self.coverage * 100:5.1f}%\n")
 
             return buf.getvalue()
@@ -688,7 +688,8 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
                                                              "is lower. Normally used to prevent "
                                                              "coverage drop between subsequent "
                                                              "tests."),
-            cov_format: Path = typer.Option('string', help="The output format to print, either 'string' or 'markdown'")):
+            cov_format: Path = typer.Option('string', help="The output format to print, either "
+                                                            "`string` or `markdown`")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
     return do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare, cov_format)
