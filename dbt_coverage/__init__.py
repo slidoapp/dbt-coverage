@@ -269,19 +269,40 @@ class CoverageReport:
             {}
         )
 
+    def to_markdown_table(self):
+        if self.entity_type == CoverageReport.EntityType.TABLE:
+            return f"| {self.entity_name:70} | {len(self.covered):5}/{len(self.total):<5} | " \
+                   f"{self.coverage * 100:5.1f}% |"
+        elif self.entity_type == CoverageReport.EntityType.CATALOG:
+            buf = io.StringIO()
+
+            buf.write("# Coverage report\n")
+            buf.write('| Model | Columns Covered | % |\n')
+            buf.write('|:------|----------------:|:-:|\n')
+            for _, table_cov in sorted(self.subentities.items()):
+                buf.write(table_cov.to_markdown_table() + "\n")
+            buf.write('-' * 90 + "\n")
+            buf.write(f"{'Total':70} {len(self.covered):5}/{len(self.total):<5} "
+                      f"{self.coverage * 100:5.1f}%\n")
+
+            return buf.getvalue()
+        else:
+            raise TypeError(f"Unsupported report_type for to_markdown_table method: "
+                            f"{type(self.entity_type)}")
+
     def to_formatted_string(self):
         if self.entity_type == CoverageReport.EntityType.TABLE:
-            return f"{self.entity_name:50} {len(self.covered):5}/{len(self.total):<5} " \
+            return f"{self.entity_name:70} {len(self.covered):5}/{len(self.total):<5} " \
                    f"{self.coverage * 100:5.1f}%"
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
             buf.write("Coverage report\n")
-            buf.write('=' * 69 + "\n")
+            buf.write('-' * 90 + "\n")
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_formatted_string() + "\n")
-            buf.write('=' * 69 + "\n")
-            buf.write(f"{'Total':50} {len(self.covered):5}/{len(self.total):<5} "
+            buf.write('-' * 90 + "\n")
+            buf.write(f"{'Total':70} {len(self.covered):5}/{len(self.total):<5} "
                       f"{self.coverage * 100:5.1f}%\n")
 
             return buf.getvalue()
@@ -616,7 +637,7 @@ def fail_compare(coverage_report: CoverageReport, compare_path: Path):
 
 def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.json'),
                cov_type: CoverageType = CoverageType.DOC, cov_fail_under: float = None,
-               cov_fail_compare: Path = None):
+               cov_fail_compare: Path = None, cov_format: Path = Path('string')):
     """
     Computes coverage for a dbt project.
 
@@ -625,8 +646,11 @@ def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.
 
     catalog = load_files(project_dir)
     coverage_report = compute_coverage(catalog, cov_type)
-
-    print(coverage_report.to_formatted_string())
+    
+    if str(cov_format) == 'markdown':
+        print(coverage_report.to_markdown_table())
+    else:
+        print(coverage_report.to_formatted_string())
 
     write_coverage_report(coverage_report, cov_report)
 
@@ -664,10 +688,11 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
                                                              "with and fail if current coverage "
                                                              "is lower. Normally used to prevent "
                                                              "coverage drop between subsequent "
-                                                             "tests.")):
+                                                             "tests."),
+            cov_format: Path = typer.Option('string', help="The output format to print, either 'string' or 'markdown'")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
-    return do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare)
+    return do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare, cov_format)
 
 
 @app.command()
