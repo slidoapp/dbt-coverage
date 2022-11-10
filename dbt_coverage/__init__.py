@@ -281,9 +281,8 @@ class CoverageReport:
             buf.write('|:------|----------------:|:-:|\n')
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_markdown_table() + "\n")
-            buf.write('-' * 90 + "\n")
-            buf.write(f"{'Total':70} {len(self.covered):5}/{len(self.total):<5} "
-                      f"{self.coverage * 100:5.1f}%\n")
+            buf.write(f"| {'Total':70} | {len(self.covered):5}/{len(self.total):<5} | "
+                      f"{self.coverage * 100:5.1f}% |\n")
 
             return buf.getvalue()
         else:
@@ -292,16 +291,16 @@ class CoverageReport:
 
     def to_formatted_string(self):
         if self.entity_type == CoverageReport.EntityType.TABLE:
-            return f"{self.entity_name:70} {len(self.covered):5}/{len(self.total):<5} " \
+            return f"{self.entity_name:50} {len(self.covered):5}/{len(self.total):<5} " \
                    f"{self.coverage * 100:5.1f}%"
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
             buf.write("Coverage report\n")
-            buf.write('-' * 90 + "\n")
+            buf.write('=' * 69 + "\n")
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_formatted_string() + "\n")
-            buf.write('-' * 90 + "\n")
+            buf.write('=' * 69 + "\n")
             buf.write(f"{'Total':70} {len(self.covered):5}/{len(self.total):<5} "
                       f"{self.coverage * 100:5.1f}%\n")
 
