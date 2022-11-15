@@ -26,6 +26,10 @@ class CoverageType(Enum):
     DOC = 'doc'
     TEST = 'test'
 
+class CoverageFormat(Enum):
+    STRING_TABLE = 'string'
+    MARKDOWN_TABLE = 'markdown'
+
 
 @dataclass
 class Column:
@@ -636,7 +640,7 @@ def fail_compare(coverage_report: CoverageReport, compare_path: Path):
 
 def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.json'),
                cov_type: CoverageType = CoverageType.DOC, cov_fail_under: float = None,
-               cov_fail_compare: Path = None, cov_format: Path = Path('string')):
+               cov_fail_compare: Path = None, cov_format: CoverageFormat = CoverageFormat.STRING_TABLE):
     """
     Computes coverage for a dbt project.
 
@@ -646,7 +650,7 @@ def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.
     catalog = load_files(project_dir)
     coverage_report = compute_coverage(catalog, cov_type)
     
-    if str(cov_format) == 'markdown':
+    if cov_format == CoverageFormat.MARKDOWN_TABLE:
         print(coverage_report.to_markdown_table())
     else:
         print(coverage_report.to_formatted_string())
@@ -688,7 +692,7 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
                                                              "is lower. Normally used to prevent "
                                                              "coverage drop between subsequent "
                                                              "tests."),
-            cov_format: Path = typer.Option('string', help="The output format to print, either "
+            cov_format: CoverageFormat = typer.Option(None, help="The output format to print, either "
                                                             "`string` or `markdown`")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
