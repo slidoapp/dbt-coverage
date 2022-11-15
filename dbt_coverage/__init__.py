@@ -59,6 +59,8 @@ class Table:
     """Dataclass containing the information about a database table and its columns."""
 
     name: str
+    unique_id: str
+    original_file_path: None
     columns: Dict[str, Column]
 
     @staticmethod
@@ -66,8 +68,28 @@ class Table:
         columns = [Column.from_node(col) for col in node['columns'].values()]
         return Table(
             f"{node['metadata']['schema']}.{node['metadata']['name']}".lower(),
-            {col.name: col for col in columns}
+            node['unique_id'], None, {col.name: col for col in columns}
         )
+
+    def update_original_file_path(self, manifest: Manifest) -> None:
+        """
+        Update Table's ``original_file_path`` attribute by retrieving this information from a
+        Manifest.
+
+        :param manifest: the Manifest used which contains the ``original_file_path`` for a Table
+        :returns: None
+        """
+        old_original_file_path_value = self.original_file_path
+
+        manifest_attributes = vars(manifest)
+        for attribute_type_name, attribute_type_dict in manifest_attributes.items():
+            for attribute_instance_name, attribute_instance in attribute_type_dict.items():
+                if self.unique_id in attribute_instance.values():
+                    self.original_file_path = attribute_instance['original_file_path']
+
+        if self.original_file_path is None or self.original_file_path == \
+                old_original_file_path_value:
+            logging.info(f"original_file_path value not found in manifest for {self.unique_id}")
 
     def get_column(self, column_name):
         return self.columns.get(column_name)
@@ -78,6 +100,38 @@ class Catalog:
     """Dataclass containing the information about a database catalog, its tables and columns."""
 
     tables: Dict[str, Table]
+
+    def filter_catalog(self, model_path_filter: List[str]) -> Catalog:
+        """
+        Filter ``Catalog``'s ``tables`` attribute to ``Tables`` that have the``model_path_filter``
+        value at the start of their ``original_file_path``.
+
+        :param model_path_filter: the model_path string(s) to filter tables on, (matches using
+        the ``startswith`` operator)
+
+        :returns: Catalog
+        :raises ValueError: if no ``Table`` in the ``tables`` Catalog attribute have an
+        ``original_file_path`` that contains any ``model_path_filter`` value
+        """
+        filtered_tables = {}
+
+        original_tables_dict = {key: val for key, val in self.tables.items()}
+        for key, table in original_tables_dict.items():
+            for path in model_path_filter:
+                if table.original_file_path.startswith(path):
+                    filtered_tables[key] = table
+                    break
+
+        if len(filtered_tables) < 1:
+            logging.error("len(filtered_tables) < 1", exc_info=True)
+            raise ValueError(
+                "After filtering the Catalog contains no tables. Ensure your model_path_filter "
+                "is correct")
+        else:
+            logging.info("Successfully filtered tables. Total tables post-filtering: %d tables",
+                         len(filtered_tables))
+
+            return Catalog(tables=filtered_tables)
 
     @staticmethod
     def from_nodes(nodes):
@@ -90,10 +144,10 @@ class Catalog:
 
 @dataclass
 class Manifest:
-    sources: Dict[str, Dict[str, Dict]]
-    models: Dict[str, Dict[str, Dict]]
-    seeds: Dict[str, Dict[str, Dict]]
-    snapshots: Dict[str, Dict[str, Dict]]
+    sources: Dict[str, Dict[str, Dict[str, Dict]]]
+    models: Dict[str, Dict[str, Dict[str, Dict]]]
+    seeds: Dict[str, Dict[str, Dict[str, Dict]]]
+    snapshots: Dict[str, Dict[str, Dict[str, Dict]]]
     tests: Dict[str, Dict[str, List[Dict]]]
 
     @classmethod
@@ -102,21 +156,30 @@ class Manifest:
 
         sources = [table for table in manifest_nodes.values()
                    if table['resource_type'] == 'source']
-        sources = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
-                   for table in sources}
+        sources = {cls._full_table_name(table): {
+            'columns': cls._normalize_column_names(table['columns']),
+            'original_file_path': cls._normalize_path(table['original_file_path']),
+            'unique_id': table['unique_id']} for table in sources}
 
-        models = [table for table in manifest_nodes.values() if table['resource_type'] == 'model']
-        models = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
-                  for table in models}
+        models = [table for table in manifest_nodes.values()
+                  if table['resource_type'] == 'model']
+        models = {cls._full_table_name(table): {
+            'columns': cls._normalize_column_names(table['columns']),
+            'original_file_path': cls._normalize_path(table['original_file_path']),
+            'unique_id': table['unique_id']} for table in models}
 
         seeds = [table for table in manifest_nodes.values() if table['resource_type'] == 'seed']
-        seeds = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
-                 for table in seeds}
+        seeds = {cls._full_table_name(table): {
+            'columns': cls._normalize_column_names(table['columns']),
+            'original_file_path': cls._normalize_path(table['original_file_path']),
+            'unique_id': table['unique_id']} for table in seeds}
 
         snapshots = [table for table in manifest_nodes.values()
                      if table['resource_type'] == 'snapshot']
-        snapshots = {cls._full_table_name(table): cls._normalize_column_names(table['columns'])
-                     for table in snapshots}
+        snapshots = {cls._full_table_name(table): {
+            'columns': cls._normalize_column_names(table['columns']),
+            'original_file_path': cls._normalize_path(table['original_file_path']),
+            'unique_id': table['unique_id']} for table in snapshots}
 
         tests = cls._parse_tests(manifest_nodes)
 
@@ -171,6 +234,10 @@ class Manifest:
         for col in columns.values():
             col['name'] = col['name'].lower()
         return {col['name']: col for col in columns.values()}
+
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        return str(Path(path).as_posix())
 
 
 @dataclass
@@ -528,11 +595,16 @@ def check_manifest_version(manifest_json):
         )
 
 
-def load_catalog(project_dir: Path) -> Catalog:
-    catalog_path = project_dir / 'target/catalog.json'
+def load_catalog(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
+    if run_artifacts_dir is None:
+        catalog_path = project_dir / 'target/catalog.json'
+    else:
+        catalog_path = run_artifacts_dir / 'catalog.json'
+
     if not catalog_path.exists():
-        raise FileNotFoundError("target/catalog.json not found - "
+        raise FileNotFoundError("catalog.json not found in target/ or in custom path - "
                                 "before using dbt-coverage, run: dbt docs generate")
+
     with open(catalog_path) as f:
         catalog_json = json.load(f)
 
@@ -544,12 +616,17 @@ def load_catalog(project_dir: Path) -> Catalog:
     return catalog
 
 
-def load_manifest(project_dir: Path) -> Manifest:
-    manifest_path = project_dir / 'target/manifest.json'
+def load_manifest(project_dir: Path, run_artifacts_dir: Path) -> Manifest:
+    if run_artifacts_dir is None:
+        manifest_path = project_dir / 'target/manifest.json'
+    else:
+        manifest_path = run_artifacts_dir / 'manifest.json'
+
     if not manifest_path.exists():
-        raise FileNotFoundError(f"target/manifest.json not found - "
-                                 "before using dbt-coverage, run a dbt command that creates manifest artifact "
-                                 "(see: https://docs.getdbt.com/reference/artifacts/manifest-json)")
+        raise FileNotFoundError(f"manifest.json not found in target or in custom path - "
+                                "before using dbt-coverage, run a dbt command that creates manifest artifact "
+                                "(see: https://docs.getdbt.com/reference/artifacts/manifest-json)")
+
     with open(manifest_path) as f:
         manifest_json = json.load(f)
 
@@ -561,14 +638,18 @@ def load_manifest(project_dir: Path) -> Manifest:
     return manifest
 
 
-def load_files(project_dir: Path) -> Catalog:
-    logging.info("Loading catalog and manifest files from project dir: %s", project_dir)
+def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
+    if run_artifacts_dir is None:
+        logging.info("Loading catalog and manifest files from project dir: %s", project_dir)
+    else:
+        logging.info("Loading catalog and manifest files from custom dir: %s", run_artifacts_dir)
 
-    catalog = load_catalog(project_dir)
-    manifest = load_manifest(project_dir)
+    catalog = load_catalog(project_dir, run_artifacts_dir)
+    manifest = load_manifest(project_dir, run_artifacts_dir)
 
     for table_name in catalog.tables:
         catalog_table = catalog.get_table(table_name)
+        catalog_table.update_original_file_path(manifest)
         manifest_source_table = manifest.sources.get(table_name, {})
         manifest_model_table = manifest.models.get(table_name, {})
         manifest_seed_table = manifest.seeds.get(table_name, {})
@@ -638,16 +719,22 @@ def fail_compare(coverage_report: CoverageReport, compare_path: Path):
                            f"{diff.after.coverage:.2%}")
 
 
-def do_compute(project_dir: Path = Path('.'), cov_report: Path = Path('coverage.json'),
-               cov_type: CoverageType = CoverageType.DOC, cov_fail_under: float = None,
-               cov_fail_compare: Path = None, cov_format: CoverageFormat = CoverageFormat.STRING_TABLE):
+def do_compute(project_dir: Path = Path('.'), run_artifacts_dir: Path = None,
+               cov_report: Path = Path('coverage.json'), cov_type: CoverageType = CoverageType.DOC,
+               cov_fail_under: float = None, cov_fail_compare: Path = None,
+               model_path_filter: Optional[List[str]] = None,
+               cov_format: CoverageFormat = CoverageFormat.STRING_TABLE):
     """
     Computes coverage for a dbt project.
 
     Use this method in your Python code to bypass typer.
     """
 
-    catalog = load_files(project_dir)
+    catalog = load_files(project_dir, run_artifacts_dir)
+
+    if len(model_path_filter) >= 1:
+        catalog = catalog.filter_catalog(model_path_filter)
+
     coverage_report = compute_coverage(catalog, cov_type)
     
     if cov_format == CoverageFormat.MARKDOWN_TABLE:
@@ -683,6 +770,8 @@ def do_compare(report: Path, compare_report: Path):
 
 @app.command()
 def compute(project_dir: Path = typer.Option('.', help="dbt project directory path."),
+            run_artifacts_dir: Path = typer.Option(None, help="custom directory path for "
+                                                              "catalog and manifest files"),
             cov_report: Path = typer.Option('coverage.json', help="Output coverage report path."),
             cov_type: CoverageType = typer.Argument(..., help="Type of coverage to compute."),
             cov_fail_under: float = typer.Option(None, help="Fail if coverage is lower than "
@@ -692,11 +781,16 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
                                                              "is lower. Normally used to prevent "
                                                              "coverage drop between subsequent "
                                                              "tests."),
+            model_path_filter: Optional[List[str]] = typer.Option(None, help="The model_path "
+                                                                             "string(s) to "
+                                                                             "filter tables "
+                                                                             "on."),
             cov_format: CoverageFormat = typer.Option(None, help="The output format to print, either "
                                                             "`string` or `markdown`")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
-    return do_compute(project_dir, cov_report, cov_type, cov_fail_under, cov_fail_compare, cov_format)
+    return do_compute(project_dir, run_artifacts_dir, cov_report, cov_type, cov_fail_under,
+                      cov_fail_compare, model_path_filter, cov_format)
 
 
 @app.command()
