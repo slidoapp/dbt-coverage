@@ -26,6 +26,10 @@ class CoverageType(Enum):
     DOC = 'doc'
     TEST = 'test'
 
+class CoverageFormat(Enum):
+    STRING_TABLE = 'string'
+    MARKDOWN_TABLE = 'markdown'
+
 
 @dataclass
 class Column:
@@ -335,6 +339,26 @@ class CoverageReport:
             total,
             {}
         )
+
+    def to_markdown_table(self):
+        if self.entity_type == CoverageReport.EntityType.TABLE:
+            return f"| {self.entity_name:70} | {len(self.covered):5}/{len(self.total):<5} | " \
+                   f"{self.coverage * 100:5.1f}% |"
+        elif self.entity_type == CoverageReport.EntityType.CATALOG:
+            buf = io.StringIO()
+
+            buf.write("# Coverage report\n")
+            buf.write('| Model | Columns Covered | % |\n')
+            buf.write('|:------|----------------:|:-:|\n')
+            for _, table_cov in sorted(self.subentities.items()):
+                buf.write(table_cov.to_markdown_table() + "\n")
+            buf.write(f"| {'Total':70} | {len(self.covered):5}/{len(self.total):<5} | "
+                      f"{self.coverage * 100:5.1f}% |\n")
+
+            return buf.getvalue()
+        else:
+            raise TypeError(f"Unsupported report_type for to_markdown_table method: "
+                            f"{type(self.entity_type)}")
 
     def to_formatted_string(self):
         if self.entity_type == CoverageReport.EntityType.TABLE:
@@ -698,7 +722,8 @@ def fail_compare(coverage_report: CoverageReport, compare_path: Path):
 def do_compute(project_dir: Path = Path('.'), run_artifacts_dir: Path = None,
                cov_report: Path = Path('coverage.json'), cov_type: CoverageType = CoverageType.DOC,
                cov_fail_under: float = None, cov_fail_compare: Path = None,
-               model_path_filter: Optional[List[str]] = None):
+               model_path_filter: Optional[List[str]] = None,
+               cov_format: CoverageFormat = CoverageFormat.STRING_TABLE):
     """
     Computes coverage for a dbt project.
 
@@ -711,8 +736,11 @@ def do_compute(project_dir: Path = Path('.'), run_artifacts_dir: Path = None,
         catalog = catalog.filter_catalog(model_path_filter)
 
     coverage_report = compute_coverage(catalog, cov_type)
-
-    print(coverage_report.to_formatted_string())
+    
+    if cov_format == CoverageFormat.MARKDOWN_TABLE:
+        print(coverage_report.to_markdown_table())
+    else:
+        print(coverage_report.to_formatted_string())
 
     write_coverage_report(coverage_report, cov_report)
 
@@ -756,11 +784,13 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
             model_path_filter: Optional[List[str]] = typer.Option(None, help="The model_path "
                                                                              "string(s) to "
                                                                              "filter tables "
-                                                                             "on.")):
+                                                                             "on."),
+            cov_format: CoverageFormat = typer.Option(CoverageFormat.STRING_TABLE, help="The output format to print, either "
+                                                            "`string` or `markdown`")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
     return do_compute(project_dir, run_artifacts_dir, cov_report, cov_type, cov_fail_under,
-                      cov_fail_compare, model_path_filter)
+                      cov_fail_compare, model_path_filter, cov_format)
 
 
 @app.command()
