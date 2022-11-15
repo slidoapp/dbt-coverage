@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- Support for custom run artifacts path. [#33] _Thanks to @Fszta!_
 - Support for model selection by path. [#45] _Thanks to @followingell!_ 
 
 ## [0.2.3] - 2022-10-14
