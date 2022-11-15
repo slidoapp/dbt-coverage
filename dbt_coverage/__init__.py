@@ -785,7 +785,7 @@ def compute(project_dir: Path = typer.Option('.', help="dbt project directory pa
                                                                              "string(s) to "
                                                                              "filter tables "
                                                                              "on."),
-            cov_format: CoverageFormat = typer.Option(None, help="The output format to print, either "
+            cov_format: CoverageFormat = typer.Option(CoverageFormat.STRING_TABLE, help="The output format to print, either "
                                                             "`string` or `markdown`")):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
 
