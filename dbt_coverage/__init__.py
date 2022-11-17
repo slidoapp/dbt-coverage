@@ -87,6 +87,7 @@ class Table:
                 attribute_instance_name,
                 attribute_instance,
             ) in attribute_type_dict.items():
+
                 if self.unique_id in attribute_instance.values():
                     self.original_file_path = attribute_instance["original_file_path"]
 
@@ -774,17 +775,25 @@ def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
     for table_name in catalog.tables:
         catalog_table = catalog.get_table(table_name)
         catalog_table.update_original_file_path(manifest)
-        manifest_source_table = manifest.sources.get(table_name, {})
-        manifest_model_table = manifest.models.get(table_name, {})
-        manifest_seed_table = manifest.seeds.get(table_name, {})
-        manifest_snapshot_table = manifest.snapshots.get(table_name, {})
+        manifest_source_table = manifest.sources.get(table_name, {"columns": {}})
+        manifest_model_table = manifest.models.get(table_name, {"columns": {}})
+        manifest_seed_table = manifest.seeds.get(table_name, {"columns": {}})
+        manifest_snapshot_table = manifest.snapshots.get(table_name, {"columns": {}})
         manifest_table_tests = manifest.tests.get(table_name, {})
 
         for catalog_column in catalog_table.columns.values():
-            manifest_source_column = manifest_source_table.get(catalog_column.name)
-            manifest_model_column = manifest_model_table.get(catalog_column.name)
-            manifest_seed_column = manifest_seed_table.get(catalog_column.name)
-            manifest_snapshot_column = manifest_snapshot_table.get(catalog_column.name)
+            manifest_source_column = manifest_source_table["columns"].get(
+                catalog_column.name
+            )
+            manifest_model_column = manifest_model_table["columns"].get(
+                catalog_column.name
+            )
+            manifest_seed_column = manifest_seed_table["columns"].get(
+                catalog_column.name
+            )
+            manifest_snapshot_column = manifest_snapshot_table["columns"].get(
+                catalog_column.name
+            )
             manifest_column_tests = manifest_table_tests.get(catalog_column.name)
 
             manifest_column = (
