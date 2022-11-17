@@ -155,8 +155,7 @@ To compute the coverages, `dbt-coverage` looks up the artefacts from the `dbt ru
 option.
 
 ```console
-# Compute doc coverage from the artefacts located in jaffle_shop/target, print it and write it to coverage-doc.json file
-$ dbt-coverage compute doc --run-artifacts-dir jaffle_shop/target --cov-report coverage-doc.json  
+$ dbt-coverage compute doc --run-artifacts-dir jaffle_shop/target --cov-report coverage-doc.json  # Compute doc coverage from the artefacts located in jaffle_shop/target, print it and write it to coverage-doc.json file
 
 Coverage report
 ================================================
