@@ -98,6 +98,8 @@ jaffle_shop.stg_payments                               2/4      50.0%
 Total                                                 14/38     36.8%
 ```
 
+#### Filtering model paths with `--model-path-filter`
+
 You can also choose a subset of tables to compare using one or multiple `--model-path-filter` options.
 
 ```console
@@ -125,6 +127,51 @@ jaffle_shop.stg_payments               0/4       0.0%
 ======================================================
 Total                                  0/20      0.0%
 ```
+
+#### Markdown output with `--cov-format`
+
+You can also choose to print the output in the Markdown table format by specifying the `--cov-format` option.
+This can be especially useful when using `dbt-coverage` in CI/CD pipelines.
+
+```console
+$ cd jaffle_shop
+$ dbt run  # Materialize models
+$ dbt docs generate  # Generate catalog.json and manifest.json
+$ dbt-coverage compute doc --model-path-filter models/staging/ --cov-format markdown
+
+# Coverage report
+| Model | Columns Covered | % |
+|:------|----------------:|:-:|
+| jaffle_shop.stg_customers                         |     0/3     |   0.0% |
+| jaffle_shop.stg_orders                            |     0/4     |   0.0% |
+| jaffle_shop.stg_payments                          |     0/4     |   0.0% |
+| Total                                             |     0/11    |   0.0% |
+```
+
+#### Custom run artifacts path with `--run-artifacts-dir`
+
+To compute the coverages, `dbt-coverage` looks up the artefacts from the `dbt run` execution in the
+`./target/` folder in the current directory. You can specify a custom path via the `--run-artifacts-dir`
+option.
+
+```console
+# Compute doc coverage from the artefacts located in jaffle_shop/target, print it and write it to coverage-doc.json file
+$ dbt-coverage compute doc --run-artifacts-dir jaffle_shop/target --cov-report coverage-doc.json  
+
+Coverage report
+================================================
+jaffle_shop.customers             0/7       0.0%
+jaffle_shop.orders                0/9       0.0%
+jaffle_shop.raw_customers         0/3       0.0%
+jaffle_shop.raw_orders            0/4       0.0%
+jaffle_shop.raw_payments          0/4       0.0%
+jaffle_shop.stg_customers         0/3       0.0%
+jaffle_shop.stg_orders            0/4       0.0%
+jaffle_shop.stg_payments          0/4       0.0%
+================================================
+Total                             0/38      0.0%
+```
+
 
 ### Compare
 
