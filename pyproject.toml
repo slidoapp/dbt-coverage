@@ -1,10 +1,26 @@
 [tool.poetry]
 name = "dbt-coverage"
-version = "0.3.1"
+version = "0.3.2"
 description = "One-stop-shop for docs and test coverage of dbt projects"
 authors = ["Andrej Švec <asvec@slido.com>"]
 readme = 'README.md'
 license = "MIT"
+repository = "https://github.com/slidoapp/dbt-coverage"
+homepage = "https://github.com/slidoapp/dbt-coverage"
+documentation = "https://github.com/slidoapp/dbt-coverage"
+classifiers = [
+  "Operating System :: OS Independent",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.6",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: MIT License",
+]
 
 [tool.poetry.dependencies]
 python = "^3.6"
