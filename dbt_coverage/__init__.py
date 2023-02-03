@@ -125,6 +125,8 @@ class Catalog:
 
         original_tables_dict = {key: val for key, val in self.tables.items()}
         for key, table in original_tables_dict.items():
+            if table.original_file_path is None:
+                continue
             for path in model_path_filter:
                 if table.original_file_path.startswith(path):
                     filtered_tables[key] = table
