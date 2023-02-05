@@ -147,7 +147,7 @@ class Catalog:
     @staticmethod
     def from_nodes(nodes):
         tables = [Table.from_node(table) for table in nodes]
-        return Catalog({table.name: table for table in tables})
+        return Catalog({table.unique_id.lower(): table for table in tables})
 
     def get_table(self, table_name):
         return self.tables.get(table_name)
@@ -273,7 +273,7 @@ class Manifest:
 
     @staticmethod
     def _full_table_name(table):
-        return f'{table["schema"]}.{table["name"]}'.lower()
+        return f"{table['unique_id']}".lower()
 
     @staticmethod
     def _normalize_column_names(columns):
