@@ -56,48 +56,33 @@ class Column:
 class Table:
     """Dataclass containing the information about a database table and its columns."""
 
-    name: str
     unique_id: str
-    original_file_path: None
+    name: str
+    original_file_path: str
     columns: Dict[str, Column]
 
     @staticmethod
-    def from_node(node) -> Table:
+    def from_node(node, manifest: Manifest) -> Table:
+        unique_id = node["unique_id"]
+        manifest_table = manifest.get_table(unique_id)
         columns = [Column.from_node(col) for col in node["columns"].values()]
-        return Table(
-            f"{node['metadata']['schema']}.{node['metadata']['name']}".lower(),
-            node["unique_id"],
-            None,
-            {col.name: col for col in columns},
+        original_file_path = (
+            manifest_table["original_file_path"] if manifest_table else None
         )
 
-    def update_original_file_path(self, manifest: Manifest) -> None:
-        """
-        Update Table's ``original_file_path`` attribute by retrieving this information from a
-        Manifest.
-
-        :param manifest: the Manifest used which contains the ``original_file_path`` for a Table
-        :returns: None
-        """
-        old_original_file_path_value = self.original_file_path
-
-        manifest_attributes = vars(manifest)
-        for attribute_type_name, attribute_type_dict in manifest_attributes.items():
-            for (
-                attribute_instance_name,
-                attribute_instance,
-            ) in attribute_type_dict.items():
-
-                if self.unique_id in attribute_instance.values():
-                    self.original_file_path = attribute_instance["original_file_path"]
-
-        if (
-            self.original_file_path is None
-            or self.original_file_path == old_original_file_path_value
-        ):
-            logging.info(
-                f"original_file_path value not found in manifest for {self.unique_id}"
+        if original_file_path is None:
+            logging.warning(
+                "original_file_path value not found in manifest for %s", unique_id
             )
+
+        return Table(
+            unique_id,
+            # Take table name from manifest.json instead of catalog.json since in catalog.json the
+            # name is actually an alias in case it is defined.
+            manifest_table["name"].lower(),
+            original_file_path,
+            {col.name: col for col in columns},
+        )
 
     def get_column(self, column_name):
         return self.columns.get(column_name)
@@ -145,12 +130,12 @@ class Catalog:
             return Catalog(tables=filtered_tables)
 
     @staticmethod
-    def from_nodes(nodes):
-        tables = [Table.from_node(table) for table in nodes]
-        return Catalog({table.unique_id.lower(): table for table in tables})
+    def from_nodes(nodes, manifest: Manifest):
+        tables = [Table.from_node(table, manifest) for table in nodes]
+        return Catalog({table.unique_id: table for table in tables})
 
-    def get_table(self, table_name):
-        return self.tables.get(table_name)
+    def get_table(self, table_id):
+        return self.tables.get(table_id)
 
 
 @dataclass
@@ -171,10 +156,10 @@ class Manifest:
             if table["resource_type"] == "source"
         ]
         sources = {
-            cls._full_table_name(table): {
+            table["unique_id"]: {
                 "columns": cls._normalize_column_names(table["columns"]),
                 "original_file_path": cls._normalize_path(table["original_file_path"]),
-                "unique_id": table["unique_id"],
+                "name": cls._full_table_name(table),
             }
             for table in sources
         }
@@ -185,10 +170,10 @@ class Manifest:
             if table["resource_type"] == "model"
         ]
         models = {
-            cls._full_table_name(table): {
+            table["unique_id"]: {
                 "columns": cls._normalize_column_names(table["columns"]),
                 "original_file_path": cls._normalize_path(table["original_file_path"]),
-                "unique_id": table["unique_id"],
+                "name": cls._full_table_name(table),
             }
             for table in models
         }
@@ -199,10 +184,10 @@ class Manifest:
             if table["resource_type"] == "seed"
         ]
         seeds = {
-            cls._full_table_name(table): {
+            table["unique_id"]: {
                 "columns": cls._normalize_column_names(table["columns"]),
                 "original_file_path": cls._normalize_path(table["original_file_path"]),
-                "unique_id": table["unique_id"],
+                "name": cls._full_table_name(table),
             }
             for table in seeds
         }
@@ -213,10 +198,10 @@ class Manifest:
             if table["resource_type"] == "snapshot"
         ]
         snapshots = {
-            cls._full_table_name(table): {
+            table["unique_id"]: {
                 "columns": cls._normalize_column_names(table["columns"]),
                 "original_file_path": cls._normalize_path(table["original_file_path"]),
-                "unique_id": table["unique_id"],
+                "name": cls._full_table_name(table),
             }
             for table in snapshots
         }
@@ -224,6 +209,27 @@ class Manifest:
         tests = cls._parse_tests(manifest_nodes)
 
         return Manifest(sources, models, seeds, snapshots, tests)
+
+    def get_table(self, table_id):
+        source_candidate = self.sources.get(table_id)
+        models_candidate = self.models.get(table_id)
+        seeds_candidate = self.seeds.get(table_id)
+        snapshots_candidate = self.snapshots.get(table_id)
+
+        all_candidates = [
+            source_candidate,
+            models_candidate,
+            seeds_candidate,
+            snapshots_candidate,
+        ]
+        non_empty_candidates = [c for c in all_candidates if c]
+
+        if len(non_empty_candidates) > 1:
+            raise ValueError(
+                f"Duplicate unique_id: {table_id}, duplicate entries: {non_empty_candidates}"
+            )
+
+        return non_empty_candidates[0] if non_empty_candidates else None
 
     @classmethod
     def _parse_tests(
@@ -234,12 +240,6 @@ class Manifest:
         The logic is taken from the dbt-docs official source code:
         https://github.com/dbt-labs/dbt-docs/blob/02731092389b18d69649fdc322d969b5d5b61b20/src/app/services/project_service.js#L155-L221
         """
-
-        id_to_table_name = {
-            table_id: cls._full_table_name(table)
-            for table_id, table in manifest_nodes.items()
-            if table["resource_type"] in ["source", "model", "seed", "snapshot"]
-        }
 
         tests = {}
         for node in manifest_nodes.values():
@@ -254,7 +254,6 @@ class Manifest:
                 table_id = depends_on[-1]
             else:
                 table_id = depends_on[0]
-            table_name = id_to_table_name[table_id]
 
             column_name = (
                 node.get("column_name")
@@ -265,7 +264,7 @@ class Manifest:
                 continue
 
             column_name = column_name.lower()
-            table_tests = tests.setdefault(table_name, {})
+            table_tests = tests.setdefault(table_id, {})
             column_tests = table_tests.setdefault(column_name, [])
             column_tests.append(node)
 
@@ -273,7 +272,7 @@ class Manifest:
 
     @staticmethod
     def _full_table_name(table):
-        return f"{table['unique_id']}".lower()
+        return f"{table['schema']}.{table['name']}".lower()
 
     @staticmethod
     def _normalize_column_names(columns):
@@ -324,7 +323,7 @@ class CoverageReport:
     subentities: Dict[str, CoverageReport]
 
     def __post_init__(self):
-        if self.covered is not None and self.total is not None and self.total != 0 :
+        if self.covered is not None and self.total is not None and self.total != 0:
             self.misses = self.total - self.covered
             self.coverage = len(self.covered) / len(self.total)
         else:
@@ -712,7 +711,9 @@ def check_manifest_version(manifest_json):
         )
 
 
-def load_catalog(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
+def load_catalog(
+    project_dir: Path, run_artifacts_dir: Path, manifest: Manifest
+) -> Catalog:
     if run_artifacts_dir is None:
         catalog_path = project_dir / "target/catalog.json"
     else:
@@ -728,7 +729,7 @@ def load_catalog(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
         catalog_json = json.load(f)
 
     catalog_nodes = {**catalog_json["sources"], **catalog_json["nodes"]}
-    catalog = Catalog.from_nodes(catalog_nodes.values())
+    catalog = Catalog.from_nodes(catalog_nodes.values(), manifest)
 
     logging.info("Successfully loaded %d tables from catalog", len(catalog.tables))
 
@@ -769,17 +770,16 @@ def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
             "Loading catalog and manifest files from custom dir: %s", run_artifacts_dir
         )
 
-    catalog = load_catalog(project_dir, run_artifacts_dir)
     manifest = load_manifest(project_dir, run_artifacts_dir)
+    catalog = load_catalog(project_dir, run_artifacts_dir, manifest)
 
-    for table_name in catalog.tables:
-        catalog_table = catalog.get_table(table_name)
-        catalog_table.update_original_file_path(manifest)
-        manifest_source_table = manifest.sources.get(table_name, {"columns": {}})
-        manifest_model_table = manifest.models.get(table_name, {"columns": {}})
-        manifest_seed_table = manifest.seeds.get(table_name, {"columns": {}})
-        manifest_snapshot_table = manifest.snapshots.get(table_name, {"columns": {}})
-        manifest_table_tests = manifest.tests.get(table_name, {})
+    for table_id in catalog.tables:
+        catalog_table = catalog.get_table(table_id)
+        manifest_source_table = manifest.sources.get(table_id, {"columns": {}})
+        manifest_model_table = manifest.models.get(table_id, {"columns": {}})
+        manifest_seed_table = manifest.seeds.get(table_id, {"columns": {}})
+        manifest_snapshot_table = manifest.snapshots.get(table_id, {"columns": {}})
+        manifest_table_tests = manifest.tests.get(table_id, {})
 
         for catalog_column in catalog_table.columns.values():
             manifest_source_column = manifest_source_table["columns"].get(
