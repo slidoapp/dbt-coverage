@@ -915,29 +915,26 @@ def do_compare(report: Path, compare_report: Path):
 def compute(
     project_dir: Path = typer.Option(".", help="dbt project directory path."),
     run_artifacts_dir: Path = typer.Option(
-        None, help="custom directory path for " "catalog and manifest files"
+        None, help="Custom directory path for catalog and manifest files"
     ),
     cov_report: Path = typer.Option(
         "coverage.json", help="Output coverage report path."
     ),
     cov_type: CoverageType = typer.Argument(..., help="Type of coverage to compute."),
     cov_fail_under: float = typer.Option(
-        None, help="Fail if coverage is lower than " "provided threshold."
+        None, help="Fail if coverage is lower than provided threshold."
     ),
     cov_fail_compare: Path = typer.Option(
         None,
-        help="Path to coverage report to compare "
-        "with and fail if current coverage "
-        "is lower. Normally used to prevent "
-        "coverage drop between subsequent "
-        "tests.",
+        help="Path to coverage report to compare with and fail if current coverage is lower. "
+        "Normally used to prevent coverage drop between subsequent tests.",
     ),
     model_path_filter: Optional[List[str]] = typer.Option(
-        None, help="The model_path " "string(s) to " "filter tables " "on."
+        None, help="The model_path string(s) to filter tables on."
     ),
     cov_format: CoverageFormat = typer.Option(
         CoverageFormat.STRING_TABLE,
-        help="The output format to print, either " "`string` or `markdown`",
+        help="The output format to print, either `string` or `markdown`",
     ),
 ):
     """Compute coverage for project in PROJECT_DIR from catalog.json and manifest.json."""
