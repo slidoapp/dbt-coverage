@@ -94,40 +94,32 @@ class Catalog:
 
     tables: Dict[str, Table]
 
-    def filter_catalog(self, model_path_filter: List[str]) -> Catalog:
+    def filter_tables(self, model_path_filter: List[str]) -> Catalog:
         """
-        Filter ``Catalog``'s ``tables`` attribute to ``Tables`` that have the``model_path_filter``
-        value at the start of their ``original_file_path``.
+        Filters ``Catalog``'s ``tables`` attribute to ``Tables`` that have the
+        ``model_path_filter`` value at the start of their ``original_file_path``.
 
-        :param model_path_filter: the model_path string(s) to filter tables on, (matches using
-        the ``startswith`` operator)
+        Args:
+            model_path_filter: the model_path string(s) to filter tables on, (matches using
+                the ``startswith`` operator)
 
-        :returns: Catalog
-        :raises ValueError: if no ``Table`` in the ``tables`` Catalog attribute have an
-        ``original_file_path`` that contains any ``model_path_filter`` value
+        Returns:
+            New ``Catalog`` instance containing only ``Table``s that passed the filter
         """
-        filtered_tables = {}
 
-        original_tables_dict = {key: val for key, val in self.tables.items()}
-        for key, table in original_tables_dict.items():
-            for path in model_path_filter:
-                if table.original_file_path.startswith(path):
-                    filtered_tables[key] = table
-                    break
+        model_path_filter = tuple(model_path_filter)
+        tables = {
+            t_id: t
+            for t_id, t in self.tables.items()
+            if t.original_file_path.startswith(model_path_filter)
+        }
 
-        if len(filtered_tables) < 1:
-            logging.error("len(filtered_tables) < 1", exc_info=True)
-            raise ValueError(
-                "After filtering the Catalog contains no tables. Ensure your model_path_filter "
-                "is correct"
-            )
-        else:
-            logging.info(
-                "Successfully filtered tables. Total tables post-filtering: %d tables",
-                len(filtered_tables),
-            )
+        logging.info(
+            "Successfully filtered tables. Total tables post-filtering: %d tables",
+            len(tables),
+        )
 
-            return Catalog(tables=filtered_tables)
+        return Catalog(tables=tables)
 
     @staticmethod
     def from_nodes(nodes, manifest: Manifest):
@@ -878,9 +870,13 @@ def do_compute(
     """
 
     catalog = load_files(project_dir, run_artifacts_dir)
-
-    if len(model_path_filter) >= 1:
-        catalog = catalog.filter_catalog(model_path_filter)
+    if model_path_filter:
+        catalog = catalog.filter_tables(model_path_filter)
+        if not catalog.tables:
+            raise ValueError(
+                "After filtering, the Catalog contains no tables. Ensure your model_path_filter "
+                "is correct."
+            )
 
     coverage_report = compute_coverage(catalog, cov_type)
 
