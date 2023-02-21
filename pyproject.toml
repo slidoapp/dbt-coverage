@@ -35,3 +35,6 @@ dbt-coverage = 'dbt_coverage.__init__:app'
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 99

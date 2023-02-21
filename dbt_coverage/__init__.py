@@ -66,14 +66,10 @@ class Table:
         unique_id = node["unique_id"]
         manifest_table = manifest.get_table(unique_id)
         columns = [Column.from_node(col) for col in node["columns"].values()]
-        original_file_path = (
-            manifest_table["original_file_path"] if manifest_table else None
-        )
+        original_file_path = manifest_table["original_file_path"] if manifest_table else None
 
         if original_file_path is None:
-            logging.warning(
-                "original_file_path value not found in manifest for %s", unique_id
-            )
+            logging.warning("original_file_path value not found in manifest for %s", unique_id)
 
         return Table(
             unique_id,
@@ -115,8 +111,7 @@ class Catalog:
         }
 
         logging.info(
-            "Successfully filtered tables. Total tables post-filtering: %d tables",
-            len(tables),
+            "Successfully filtered tables. Total tables post-filtering: %d tables", len(tables)
         )
 
         return Catalog(tables=tables)
@@ -143,9 +138,7 @@ class Manifest:
         """Constructs a ``Manifest`` by parsing from manifest.json nodes."""
 
         sources = [
-            table
-            for table in manifest_nodes.values()
-            if table["resource_type"] == "source"
+            table for table in manifest_nodes.values() if table["resource_type"] == "source"
         ]
         sources = {
             table["unique_id"]: {
@@ -156,11 +149,7 @@ class Manifest:
             for table in sources
         }
 
-        models = [
-            table
-            for table in manifest_nodes.values()
-            if table["resource_type"] == "model"
-        ]
+        models = [table for table in manifest_nodes.values() if table["resource_type"] == "model"]
         models = {
             table["unique_id"]: {
                 "columns": cls._normalize_column_names(table["columns"]),
@@ -170,11 +159,7 @@ class Manifest:
             for table in models
         }
 
-        seeds = [
-            table
-            for table in manifest_nodes.values()
-            if table["resource_type"] == "seed"
-        ]
+        seeds = [table for table in manifest_nodes.values() if table["resource_type"] == "seed"]
         seeds = {
             table["unique_id"]: {
                 "columns": cls._normalize_column_names(table["columns"]),
@@ -185,9 +170,7 @@ class Manifest:
         }
 
         snapshots = [
-            table
-            for table in manifest_nodes.values()
-            if table["resource_type"] == "snapshot"
+            table for table in manifest_nodes.values() if table["resource_type"] == "snapshot"
         ]
         snapshots = {
             table["unique_id"]: {
@@ -224,9 +207,7 @@ class Manifest:
         return non_empty_candidates[0] if non_empty_candidates else None
 
     @classmethod
-    def _parse_tests(
-        cls, manifest_nodes: Dict[str, Dict]
-    ) -> Dict[str, Dict[str, List[Dict]]]:
+    def _parse_tests(cls, manifest_nodes: Dict[str, Dict]) -> Dict[str, Dict[str, List[Dict]]]:
         """Parses tests from manifest.json nodes.
 
         The logic is taken from the dbt-docs official source code:
@@ -328,22 +309,15 @@ class CoverageReport:
             table.name: CoverageReport.from_table(table, cov_type)
             for table in catalog.tables.values()
         }
-        covered = set(
-            col for table_report in subentities.values() for col in table_report.covered
-        )
-        total = set(
-            col for table_report in subentities.values() for col in table_report.total
-        )
+        covered = set(col for table_report in subentities.values() for col in table_report.covered)
+        total = set(col for table_report in subentities.values() for col in table_report.total)
 
-        return CoverageReport(
-            cls.EntityType.CATALOG, cov_type, None, covered, total, subentities
-        )
+        return CoverageReport(cls.EntityType.CATALOG, cov_type, None, covered, total, subentities)
 
     @classmethod
     def from_table(cls, table: Table, cov_type: CoverageType):
         subentities = {
-            col.name: CoverageReport.from_column(col, cov_type)
-            for col in table.columns.values()
+            col.name: CoverageReport.from_column(col, cov_type) for col in table.columns.values()
         }
         covered = set(
             replace(col, table_name=table.name)
@@ -372,9 +346,7 @@ class CoverageReport:
         covered = {CoverageReport.ColumnRef(None, column.name)} if covered else set()
         total = {CoverageReport.ColumnRef(None, column.name)}
 
-        return CoverageReport(
-            cls.EntityType.COLUMN, cov_type, column.name, covered, total, {}
-        )
+        return CoverageReport(cls.EntityType.COLUMN, cov_type, column.name, covered, total, {})
 
     def to_markdown_table(self):
         if self.entity_type == CoverageReport.EntityType.TABLE:
@@ -442,9 +414,7 @@ class CoverageReport:
                 "covered": len(self.covered),
                 "total": len(self.total),
                 "coverage": self.coverage,
-                "columns": [
-                    col_report.to_dict() for col_report in self.subentities.values()
-                ],
+                "columns": [col_report.to_dict() for col_report in self.subentities.values()],
             }
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             return {
@@ -452,14 +422,11 @@ class CoverageReport:
                 "covered": len(self.covered),
                 "total": len(self.total),
                 "coverage": self.coverage,
-                "tables": [
-                    table_report.to_dict() for table_report in self.subentities.values()
-                ],
+                "tables": [table_report.to_dict() for table_report in self.subentities.values()],
             }
         else:
             raise TypeError(
-                f"Unsupported report_type for to_dict method: "
-                f"{type(self.entity_type)}"
+                f"Unsupported report_type for to_dict method: " f"{type(self.entity_type)}"
             )
 
     @staticmethod
@@ -505,9 +472,7 @@ class CoverageReport:
                 CoverageReport.EntityType.COLUMN,
                 cov_type,
                 column_name,
-                {CoverageReport.ColumnRef(None, column_name)}
-                if report["covered"] > 0
-                else set(),
+                {CoverageReport.ColumnRef(None, column_name)} if report["covered"] > 0 else set(),
                 {CoverageReport.ColumnRef(None, column_name)},
                 {},
             )
@@ -529,9 +494,7 @@ class CoverageDiff:
             f"Cannot compare reports with different cov_types: {self.before.cov_type} and "
             f"{self.after.cov_type}"
         )
-        assert (
-            self.before is None or self.before.entity_type == self.after.entity_type
-        ), (
+        assert self.before is None or self.before.entity_type == self.after.entity_type, (
             f"Cannot compare reports with different report_types: {self.before.report_type} and "
             f"{self.after.entity_type}"
         )
@@ -542,9 +505,7 @@ class CoverageDiff:
         if self.after.entity_type == CoverageReport.EntityType.COLUMN:
             return None
 
-        new_misses = self.after.misses - (
-            self.before.misses if self.before is not None else set()
-        )
+        new_misses = self.after.misses - (self.before.misses if self.before is not None else set())
 
         res: Dict[str, CoverageDiff] = {}
         for new_miss in new_misses:
@@ -568,8 +529,7 @@ class CoverageDiff:
 
         if self.after.entity_type != CoverageReport.EntityType.CATALOG:
             raise TypeError(
-                f"Unsupported report_type for summary method: "
-                f"{self.after.entity_type}"
+                f"Unsupported report_type for summary method: " f"{self.after.entity_type}"
             )
 
         buf.write(f"{'':10}{'before':>10}{'after':>10}{'+/-':>15}\n")
@@ -674,9 +634,7 @@ class CoverageDiff:
 
         before_covered = len(self.before.covered) if self.before is not None else "-"
         before_total = len(self.before.total) if self.before is not None else "-"
-        before_coverage = (
-            f"({self.before.coverage:.2%})" if self.before is not None else "(-)"
-        )
+        before_coverage = f"({self.before.coverage:.2%})" if self.before is not None else "(-)"
         after_covered = len(self.after.covered)
         after_total = len(self.after.total)
         after_coverage = f"({self.after.coverage:.2%})"
@@ -703,9 +661,7 @@ def check_manifest_version(manifest_json):
         )
 
 
-def load_catalog(
-    project_dir: Path, run_artifacts_dir: Path, manifest: Manifest
-) -> Catalog:
+def load_catalog(project_dir: Path, run_artifacts_dir: Path, manifest: Manifest) -> Catalog:
     if run_artifacts_dir is None:
         catalog_path = project_dir / "target/catalog.json"
     else:
@@ -754,13 +710,9 @@ def load_manifest(project_dir: Path, run_artifacts_dir: Path) -> Manifest:
 
 def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
     if run_artifacts_dir is None:
-        logging.info(
-            "Loading catalog and manifest files from project dir: %s", project_dir
-        )
+        logging.info("Loading catalog and manifest files from project dir: %s", project_dir)
     else:
-        logging.info(
-            "Loading catalog and manifest files from custom dir: %s", run_artifacts_dir
-        )
+        logging.info("Loading catalog and manifest files from custom dir: %s", run_artifacts_dir)
 
     manifest = load_manifest(project_dir, run_artifacts_dir)
     catalog = load_catalog(project_dir, run_artifacts_dir, manifest)
@@ -774,18 +726,10 @@ def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
         manifest_table_tests = manifest.tests.get(table_id, {})
 
         for catalog_column in catalog_table.columns.values():
-            manifest_source_column = manifest_source_table["columns"].get(
-                catalog_column.name
-            )
-            manifest_model_column = manifest_model_table["columns"].get(
-                catalog_column.name
-            )
-            manifest_seed_column = manifest_seed_table["columns"].get(
-                catalog_column.name
-            )
-            manifest_snapshot_column = manifest_snapshot_table["columns"].get(
-                catalog_column.name
-            )
+            manifest_source_column = manifest_source_table["columns"].get(catalog_column.name)
+            manifest_model_column = manifest_model_table["columns"].get(catalog_column.name)
+            manifest_seed_column = manifest_seed_table["columns"].get(catalog_column.name)
+            manifest_snapshot_column = manifest_snapshot_table["columns"].get(catalog_column.name)
             manifest_column_tests = manifest_table_tests.get(catalog_column.name)
 
             manifest_column = (
@@ -848,8 +792,7 @@ def fail_compare(coverage_report: CoverageReport, compare_path: Path):
 
     if diff.after.coverage < diff.before.coverage:
         raise RuntimeError(
-            f"Coverage decreased from {diff.before.coverage:.2%} to "
-            f"{diff.after.coverage:.2%}"
+            f"Coverage decreased from {diff.before.coverage:.2%} to " f"{diff.after.coverage:.2%}"
         )
 
 
@@ -917,9 +860,7 @@ def compute(
     run_artifacts_dir: Path = typer.Option(
         None, help="Custom directory path for catalog and manifest files"
     ),
-    cov_report: Path = typer.Option(
-        "coverage.json", help="Output coverage report path."
-    ),
+    cov_report: Path = typer.Option("coverage.json", help="Output coverage report path."),
     cov_type: CoverageType = typer.Argument(..., help="Type of coverage to compute."),
     cov_fail_under: float = typer.Option(
         None, help="Fail if coverage is lower than provided threshold."
@@ -964,9 +905,7 @@ def compare(
 
 
 @app.callback()
-def main(
-    verbose: bool = typer.Option(False, help="Turn verbose logging messages on or off.")
-):
+def main(verbose: bool = typer.Option(False, help="Turn verbose logging messages on or off.")):
     if verbose:
         logging.basicConfig(level=logging.INFO)
     else:
