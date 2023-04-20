@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2022-11-18
+### Added
+- Repository metadata
+
+## [0.3.1] - 2022-11-17
+### Fixed
+- Model selection by path
+
 ## [0.3.0] - 2022-11-17
 ### Added
 - Support for custom run artifacts path. [#33] _Thanks to @Fszta!_
