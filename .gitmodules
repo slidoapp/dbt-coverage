@@ -1,0 +1,3 @@
+[submodule "tests/integration/jaffle_shop"]
+	path = tests/integration/jaffle_shop
+	url = https://github.com/dbt-labs/jaffle_shop.git
