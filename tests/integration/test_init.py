@@ -9,6 +9,10 @@ from dbt_coverage import do_compute, CoverageType
 
 
 @pytest.fixture(scope="session")
+def docker_compose_command():
+    return "docker compose"
+
+@pytest.fixture(scope="session")
 def docker_compose_file():
     return "tests/integration/docker-compose.yml"
 
