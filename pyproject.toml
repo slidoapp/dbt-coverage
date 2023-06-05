@@ -23,15 +23,16 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = "^3.7.2"
 typer = "^0.4.0"
 
 [tool.poetry.group.dev.dependencies]
-black = { version = "*", python = ">=3.7" }
-pytest = { version = "^7.3.1", python = ">=3.7" }
+black = { version = "*" }
+tox = { version = "*" }
+pytest = { version = "^7.3.1" }
 pytest-docker = "^1.0.1"
-dbt-core = { version = "^1.5.1", python = ">=3.7.2" }
-dbt-postgres = { version = "^1.5.1", python = ">=3.7.2" }
+dbt-core = { version = "~1.5.0" }
+dbt-postgres = { version = "~1.5.0" }
 
 [tool.poetry.scripts]
 dbt-coverage = 'dbt_coverage.__init__:app'
