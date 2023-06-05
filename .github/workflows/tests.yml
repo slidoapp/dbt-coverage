@@ -1,13 +1,22 @@
-name: Linters
+name: Tests
 on: pull_request
 
 jobs:
-  linters:
+  integration-tests:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          submodules: true
 
+      # Needed for integration tests against dbt 1.0
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      # Needed for the rest of integration tests
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -19,5 +28,5 @@ jobs:
           poetry config virtualenvs.create false
           poetry install --no-root
 
-      - name: Black
-        run: black --check dbt_coverage
+      - name: Tox
+        run: tox
