@@ -18,6 +18,7 @@ SUPPORTED_MANIFEST_SCHEMA_VERSIONS = [
     "https://schemas.getdbt.com/dbt/manifest/v7.json",
     "https://schemas.getdbt.com/dbt/manifest/v8.json",
     "https://schemas.getdbt.com/dbt/manifest/v9.json",
+    "https://schemas.getdbt.com/dbt/manifest/v10.json",
 ]
 
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
