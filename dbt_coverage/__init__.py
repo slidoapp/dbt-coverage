@@ -72,15 +72,15 @@ class Table:
 
         if original_file_path is None:
             logging.warning("original_file_path value not found in manifest for %s", unique_id)
-
-        return Table(
-            unique_id,
-            # Take table name from manifest.json instead of catalog.json since in catalog.json the
-            # name is actually an alias in case it is defined.
-            manifest_table["name"].lower(),
-            original_file_path,
-            {col.name: col for col in columns},
-        )
+        else:
+            return Table(
+                unique_id,
+                # Take table name from manifest.json instead of catalog.json since in catalog.json the
+                # name is actually an alias in case it is defined.
+                manifest_table["name"].lower(),
+                original_file_path,
+                {col.name: col for col in columns},
+            )
 
     def get_column(self, column_name):
         return self.columns.get(column_name)
@@ -120,7 +120,8 @@ class Catalog:
 
     @staticmethod
     def from_nodes(nodes, manifest: Manifest):
-        tables = [Table.from_node(table, manifest) for table in nodes]
+        tables_tmp = [Table.from_node(table, manifest) for table in nodes]
+        tables = [table for table in tables_tmp if table is not None]
         return Catalog({table.unique_id: table for table in tables})
 
     def get_table(self, table_id):
