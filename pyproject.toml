@@ -27,12 +27,21 @@ python = "^3.7.2"
 typer = "^0.4.0"
 
 [tool.poetry.group.dev.dependencies]
-black = { version = "*" }
-tox = { version = "*" }
-pytest = { version = "^7.3.1" }
-pytest-docker = "^1.0.1"
-dbt-core = { version = "~1.5.0" }
-dbt-postgres = { version = "~1.5.0" }
+black = "*"
+
+tox = { version = "^4", python = "^3.7" }
+tomli = { version = "*", python = "^3.7" }  # Needed for a successful resolution of tox's transitive dependencies
+typing-extensions = { version = "*", python = "^3.7" }  # Needed for a successful resolution of tox's transitive dependencies
+colorama = { version = "*", python = "^3.7" }  # Needed for a successful resolution of tox's transitive dependencies
+
+# Needed for running tests locally
+[tool.poetry.group.test.dependencies]
+pytest = "^7"
+pytest-docker = "^2"
+
+dbt-core = { version = "~1.6.0", python = "^3.8" }
+dbt-postgres = { version = "~1.6.0", python = "^3.8" }
+importlib-metadata = { version = "*", python = "^3.8" }  # Needed for a successful resolution of dbt's transitive dependencies
 
 [tool.poetry.scripts]
 dbt-coverage = 'dbt_coverage.__init__:app'
