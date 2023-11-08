@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Integration tests
 
+### Fixed
+- `store_failures` crashing `compute`
+
 ## [0.3.4] - 2023-05-17
 ### Added
 - Support for `dbt==1.4` and `dbt==1.5`
