@@ -67,8 +67,10 @@ class Table:
     def from_node(node, manifest: Manifest) -> Table:
         unique_id = node["unique_id"]
         manifest_table = manifest.get_table(unique_id)
+        if manifest_table is None:
+            raise ValueError(f"Unique ID {unique_id} not found in manifest.json")
         columns = [Column.from_node(col) for col in node["columns"].values()]
-        original_file_path = manifest_table["original_file_path"] if manifest_table else None
+        original_file_path = manifest_table["original_file_path"]
 
         if original_file_path is None:
             logging.warning("original_file_path value not found in manifest for %s", unique_id)
@@ -679,6 +681,8 @@ def load_catalog(project_dir: Path, run_artifacts_dir: Path, manifest: Manifest)
         catalog_json = json.load(f)
 
     catalog_nodes = {**catalog_json["sources"], **catalog_json["nodes"]}
+    # Filter out tables storing test failures: https://github.com/slidoapp/dbt-coverage/issues/62
+    catalog_nodes = {n_id: n for n_id, n in catalog_nodes.items() if not n_id.startswith("test.")}
     catalog = Catalog.from_nodes(catalog_nodes.values(), manifest)
 
     logging.info("Successfully loaded %d tables from catalog", len(catalog.tables))
