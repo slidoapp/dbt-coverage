@@ -5,7 +5,7 @@ import psycopg2
 import pytest
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-from dbt_coverage import do_compute, CoverageType
+from dbt_coverage import CoverageType, do_compute
 
 DBT_PROJECT_PATH = "tests/integration/jaffle_shop"
 DBT_ARGS = [
