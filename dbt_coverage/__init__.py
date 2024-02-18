@@ -353,7 +353,7 @@ class CoverageReport:
 
         return CoverageReport(cls.EntityType.COLUMN, cov_type, column.name, covered, total, {})
 
-    def to_markdown_table(self):
+    def to_markdown_table(self, cov_type: CoverageType):
         if self.entity_type == CoverageReport.EntityType.TABLE:
             return (
                 f"| {self.entity_name:70} | {len(self.covered):5}/{len(self.total):<5} | "
@@ -362,11 +362,11 @@ class CoverageReport:
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
-            buf.write("# Coverage report\n")
+            buf.write(f"# Coverage report ({cov_type.value})\n")
             buf.write("| Model | Columns Covered | % |\n")
             buf.write("|:------|----------------:|:-:|\n")
             for _, table_cov in sorted(self.subentities.items()):
-                buf.write(table_cov.to_markdown_table() + "\n")
+                buf.write(table_cov.to_markdown_table(cov_type=cov_type) + "\n")
             buf.write(
                 f"| {'Total':70} | {len(self.covered):5}/{len(self.total):<5} | "
                 f"{self.coverage * 100:5.1f}% |\n"
@@ -379,7 +379,7 @@ class CoverageReport:
                 f"{type(self.entity_type)}"
             )
 
-    def to_formatted_string(self):
+    def to_formatted_string(self, cov_type: CoverageType):
         if self.entity_type == CoverageReport.EntityType.TABLE:
             return (
                 f"{self.entity_name:50} {len(self.covered):5}/{len(self.total):<5} "
@@ -388,10 +388,10 @@ class CoverageReport:
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
-            buf.write("Coverage report\n")
+            buf.write(f"Coverage report ({cov_type.value})\n")
             buf.write("=" * 69 + "\n")
             for _, table_cov in sorted(self.subentities.items()):
-                buf.write(table_cov.to_formatted_string() + "\n")
+                buf.write(table_cov.to_formatted_string(cov_type=cov_type) + "\n")
             buf.write("=" * 69 + "\n")
             buf.write(
                 f"{'Total':50} {len(self.covered):5}/{len(self.total):<5} "
@@ -831,9 +831,9 @@ def do_compute(
     coverage_report = compute_coverage(catalog, cov_type)
 
     if cov_format == CoverageFormat.MARKDOWN_TABLE:
-        print(coverage_report.to_markdown_table())
+        print(coverage_report.to_markdown_table(cov_type=cov_type))
     else:
-        print(coverage_report.to_formatted_string())
+        print(coverage_report.to_formatted_string(cov_type=cov_type))
 
     write_coverage_report(coverage_report, cov_report)
 
