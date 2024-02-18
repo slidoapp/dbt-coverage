@@ -1,0 +1,5 @@
+__pycache__/
+.venv/
+tests/integration/profiles/.user.yml
+coverage.json
+logs
