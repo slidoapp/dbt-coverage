@@ -14,13 +14,13 @@ repos:
       - id: detect-private-key
       - id: end-of-file-fixer
   - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+    rev: 5.13.2  # Use the same version as in pyproject.toml
     hooks:
       - id: isort
         args: ["--profile", "black", "--filter-files"]
         name: isort (python)
   - repo: https://github.com/ambv/black
-    rev: 23.12.1
+    rev: 24.2.0  # Use the same version as in pyproject.toml
     hooks:
       - id: black
         name: Run black formatter
