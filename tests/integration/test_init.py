@@ -54,10 +54,7 @@ def setup_postgres(postgres_service):
 
 @pytest.fixture
 def setup_dbt(setup_postgres):
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setenv('DBT_CLEAN_PROJECT_FILES_ONLY', 'false')
-        subprocess.run(["dbt", "clean", *DBT_ARGS], check=True)
-    
+    subprocess.run(["dbt", "clean", *DBT_ARGS], check=True)
     subprocess.run(["dbt", "seed", *DBT_ARGS], check=True)
     subprocess.run(["dbt", "run", *DBT_ARGS], check=True)
     subprocess.run(["dbt", "docs", "generate", *DBT_ARGS], check=True)
