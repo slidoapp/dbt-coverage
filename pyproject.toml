@@ -48,6 +48,9 @@ importlib-metadata = { version = "*", python = "^3.8" }  # Needed for a successf
 [tool.poetry.scripts]
 dbt-coverage = 'dbt_coverage.__init__:app'
 
+[tool.isort]
+profile = "black"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
