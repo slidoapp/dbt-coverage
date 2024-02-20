@@ -19,7 +19,7 @@ repos:
       - id: isort
         args: ["--profile", "black", "--filter-files"]
         name: isort (python)
-  - repo: https://github.com/ambv/black
+  - repo: https://github.com/psf/black-pre-commit-mirror
     rev: 24.2.0  # Use the same version as in pyproject.toml
     hooks:
       - id: black
