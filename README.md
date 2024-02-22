@@ -241,6 +241,7 @@ Clone this repo including submodules, create a virtual environment and install d
 ```bash
 git clone --recurse-submodules git@github.com:slidoapp/dbt-coverage.git
 cd dbt-coverage
+pip install poetry
 poetry shell
 poetry install
 pre-commit install
