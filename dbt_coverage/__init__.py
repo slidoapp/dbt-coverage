@@ -18,6 +18,7 @@ SUPPORTED_MANIFEST_SCHEMA_VERSIONS = [
     "https://schemas.getdbt.com/dbt/manifest/v8.json",
     "https://schemas.getdbt.com/dbt/manifest/v9.json",
     "https://schemas.getdbt.com/dbt/manifest/v10.json",
+    "https://schemas.getdbt.com/dbt/manifest/v11.json",
 ]
 
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
@@ -361,7 +362,7 @@ class CoverageReport:
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
-            buf.write("# Coverage report\n")
+            buf.write(f"# Coverage report ({self.cov_type.value})\n")
             buf.write("| Model | Columns Covered | % |\n")
             buf.write("|:------|----------------:|:-:|\n")
             for _, table_cov in sorted(self.subentities.items()):
@@ -387,7 +388,7 @@ class CoverageReport:
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
-            buf.write("Coverage report\n")
+            buf.write(f"Coverage report ({self.cov_type.value})\n")
             buf.write("=" * 69 + "\n")
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_formatted_string() + "\n")
