@@ -117,7 +117,7 @@ class Catalog:
         tables = {
             t_id: t
             for t_id, t in self.tables.items()
-            if model_tag_filter in t.tags # todo: add tags to table objects -- which are where????
+            if model_tag_filter in t.tags
         }
 
         logging.info(
