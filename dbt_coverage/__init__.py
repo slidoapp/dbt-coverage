@@ -63,6 +63,7 @@ class Table:
     unique_id: str
     name: str
     original_file_path: str
+    tags: List[str]
     columns: Dict[str, Column]
 
     @staticmethod
@@ -73,6 +74,7 @@ class Table:
             raise ValueError(f"Unique ID {unique_id} not found in manifest.json")
         columns = [Column.from_node(col) for col in node["columns"].values()]
         original_file_path = manifest_table["original_file_path"]
+        tags = manifest_table["tags"]
 
         if original_file_path is None:
             logging.warning("original_file_path value not found in manifest for %s", unique_id)
@@ -83,6 +85,7 @@ class Table:
             # name is actually an alias in case it is defined.
             manifest_table["name"].lower(),
             original_file_path,
+            tags,
             {col.name: col for col in columns},
         )
 
@@ -95,6 +98,33 @@ class Catalog:
     """Dataclass containing the information about a database catalog, its tables and columns."""
 
     tables: Dict[str, Table]
+
+    def filter_tables_by_tag(self, model_tag_filter: str) -> Catalog:
+        """
+        Filters ``Catalog``'s ``tables`` attribute to ``Tables`` that have the
+        ``model_tag_filter`` value in their ``tags`` attribute.
+
+        Args:
+            model_tag_filter: the model tag string to filter tables on
+
+        Returns:
+            New ``Catalog`` instance containing only ``Table``s that passed the filter
+        """
+
+        # model_tag_filter will be in tag:tag_value format we just need tag_value
+        model_tag_filter = model_tag_filter.split(":")[1]
+
+        tables = {
+            t_id: t
+            for t_id, t in self.tables.items()
+            if model_tag_filter in t.tags # todo: add tags to table objects -- which are where????
+        }
+
+        logging.info(
+            "Successfully filtered tables. Total tables post-filtering: %d tables", len(tables)
+        )
+
+        return Catalog(tables=tables)
 
     def filter_tables(self, model_path_filter: List[str]) -> Catalog:
         """
@@ -151,6 +181,7 @@ class Manifest:
                 "columns": cls._normalize_column_names(table["columns"]),
                 "original_file_path": cls._normalize_path(table["original_file_path"]),
                 "name": cls._full_table_name(table),
+                "tags": table.get('tags', [])
             }
             for table in sources
         }
@@ -161,6 +192,7 @@ class Manifest:
                 "columns": cls._normalize_column_names(table["columns"]),
                 "original_file_path": cls._normalize_path(table["original_file_path"]),
                 "name": cls._full_table_name(table),
+                "tags": table['tags']
             }
             for table in models
         }
@@ -171,6 +203,7 @@ class Manifest:
                 "columns": cls._normalize_column_names(table["columns"]),
                 "original_file_path": cls._normalize_path(table["original_file_path"]),
                 "name": cls._full_table_name(table),
+                "tags": table['tags']
             }
             for table in seeds
         }
@@ -183,6 +216,7 @@ class Manifest:
                 "columns": cls._normalize_column_names(table["columns"]),
                 "original_file_path": cls._normalize_path(table["original_file_path"]),
                 "name": cls._full_table_name(table),
+                "tags": table['tags'],
             }
             for table in snapshots
         }
@@ -812,6 +846,7 @@ def do_compute(
     cov_fail_under: float = None,
     cov_fail_compare: Path = None,
     model_path_filter: Optional[List[str]] = None,
+    model_tag_filter: Optional[str] = None,
     cov_format: CoverageFormat = CoverageFormat.STRING_TABLE,
 ):
     """
@@ -826,6 +861,14 @@ def do_compute(
         if not catalog.tables:
             raise ValueError(
                 "After filtering, the Catalog contains no tables. Ensure your model_path_filter "
+                "is correct."
+            )
+    
+    if model_tag_filter:
+        catalog = catalog.filter_tables_by_tag(model_tag_filter)
+        if not catalog.tables:
+            raise ValueError(
+                "After filtering, the Catalog contains no tables. Ensure your model_tag_filter "
                 "is correct."
             )
 
@@ -881,6 +924,9 @@ def compute(
     model_path_filter: Optional[List[str]] = typer.Option(
         None, help="The model_path string(s) to filter tables on."
     ),
+    model_tag_filter: Optional[str] = typer.Option(
+        None, help="The model tag(s) to filter tables on. Entered as tag:tag_value."
+    ),
     cov_format: CoverageFormat = typer.Option(
         CoverageFormat.STRING_TABLE,
         help="The output format to print, either `string` or `markdown`",
@@ -896,6 +942,7 @@ def compute(
         cov_fail_under,
         cov_fail_compare,
         model_path_filter,
+        model_tag_filter,
         cov_format,
     )
 
