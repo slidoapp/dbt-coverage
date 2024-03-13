@@ -1,0 +1,25 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: check-added-large-files
+      - id: check-json
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+        args: [--unsafe]
+      - id: debug-statements
+      - id: detect-private-key
+      - id: end-of-file-fixer
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2  # Use the same version as in pyproject.toml
+    hooks:
+      - id: isort
+        name: isort (python)
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 24.2.0  # Use the same version as in pyproject.toml
+    hooks:
+      - id: black
+        name: Run black formatter

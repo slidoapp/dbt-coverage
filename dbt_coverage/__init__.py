@@ -6,10 +6,9 @@ import logging
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Set, List, Optional
+from typing import Dict, List, Optional, Set
 
 import typer
-
 
 SUPPORTED_MANIFEST_SCHEMA_VERSIONS = [
     "https://schemas.getdbt.com/dbt/manifest/v4.json",

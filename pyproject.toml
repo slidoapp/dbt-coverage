@@ -27,7 +27,9 @@ python = "^3.6"
 typer = ">=0.4,<1"
 
 [tool.poetry.group.dev.dependencies]
-black = "*"
+black = {version = "==24.2.0", python = ">=3.8"}  # Use the same version as in .pre-commit-config.yaml
+isort = {version = "==5.13.2", python = ">=3.8"}  # Use the same version as in .pre-commit-config.yaml
+pre-commit = {version = "^3.6.2", python = ">=3.9"}
 
 tox = { version = "^4", python = "^3.7" }
 tomli = { version = "*", python = "^3.7" }  # Needed for a successful resolution of tox's transitive dependencies
@@ -45,6 +47,9 @@ importlib-metadata = { version = "*", python = "^3.8" }  # Needed for a successf
 
 [tool.poetry.scripts]
 dbt-coverage = 'dbt_coverage.__init__:app'
+
+[tool.isort]
+profile = "black"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

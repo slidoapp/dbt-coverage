@@ -59,7 +59,7 @@ option.
 
 Compute coverage from `target/catalog.json` and `target/manifest.json` files
 found in a dbt project, e.g.
-[jaffle_shop](https://github.com/dbt-labs/jaffle_shop). 
+[jaffle_shop](https://github.com/dbt-labs/jaffle_shop).
 
 To choose between documentation and test coverage, pass `doc` or `test` as the CLI argument.
 
@@ -194,10 +194,10 @@ Misses            23        24          +1/+0
 
 # New misses
 =========================================================================
-Catalog                         15/38   (39.47%)  ->    15/39   (38.46%) 
+Catalog                         15/38   (39.47%)  ->    15/39   (38.46%)
 =========================================================================
-- jaffle_shop.customers          6/7    (85.71%)  ->     6/8    (75.00%) 
--- new_col                       -/-       (-)    ->     0/1     (0.00%) 
+- jaffle_shop.customers          6/7    (85.71%)  ->     6/8    (75.00%)
+-- new_col                       -/-       (-)    ->     0/1     (0.00%)
 =========================================================================
 ```
 
@@ -234,6 +234,23 @@ the support matrix.
 - https://github.com/mikaelene/dbt-test-coverage
 - [interrogate](https://interrogate.readthedocs.io/en/latest/) (docs coverage for Python)
 - [coverage.py](https://github.com/nedbat/coveragepy) (execution coverage for Python)
+
+## Contributing
+
+Clone this repo including submodules, create a virtual environment and install dependencies:
+```bash
+git clone --recurse-submodules git@github.com:slidoapp/dbt-coverage.git
+cd dbt-coverage
+pip install poetry
+poetry shell
+poetry install
+pre-commit install
+```
+
+To run all integration tests locally, run:
+```bash
+tox
+```
 
 ## License
 
