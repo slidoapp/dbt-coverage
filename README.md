@@ -7,7 +7,6 @@
 ![PyPI - Format](https://img.shields.io/pypi/format/dbt-coverage)
 ![dbt versions](https://img.shields.io/badge/dbt-1.0-blue)
 <a href="https://github.com/slidoapp/dbt-coverage/blob/main/LICENSE.md"><img alt="License: MIT" src="https://img.shields.io/github/license/slidoapp/dbt-coverage"></a>
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fslidoapp%2Fdbt-coverage.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fslidoapp%2Fdbt-coverage?ref=badge_shield)
 
 
 _One-stop-shop for docs and test coverage of [`dbt`](https://github.com/dbt-labs/dbt) projects._
