@@ -41,8 +41,8 @@ colorama = { version = "*", python = "^3.7" }  # Needed for a successful resolut
 pytest = "^7"
 pytest-docker = "^2"
 
-dbt-core = { version = "~1.7.0", python = "^3.8" }
-dbt-postgres = { version = "~1.7.0", python = "^3.8" }
+dbt-core = { version = "~1.8.0", python = "^3.8" }
+dbt-postgres = { version = "~1.8.0", python = "^3.8" }
 importlib-metadata = { version = "*", python = "^3.8" }  # Needed for a successful resolution of dbt's transitive dependencies
 
 [tool.poetry.scripts]
