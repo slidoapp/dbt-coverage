@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Refactor tests. [#86]
 
+### Fixed
+- Avoid division by zero when self.total length is 0. [#79] _Thanks to @cedric-orange!_
+
 ## [0.3.9] - 2025-04-24
 ### Added
 - Support for model exclusion by path. [#82] _Thanks to @vvvito!_
