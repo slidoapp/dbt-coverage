@@ -52,29 +52,34 @@ def setup_postgres(postgres_service):
     cur.execute("CREATE DATABASE jaffle_shop")
 
 
-@pytest.fixture
-def setup_dbt(setup_postgres):
+@pytest.fixture(scope="session")
+def session_setup_dbt(setup_postgres):
+    """Runs dbt and dbt docs generate.
+
+    This is a session fixture that can be used to accelerate tests if no tests change the models.
+    """
+
     subprocess.run(["dbt", "clean", *DBT_ARGS], check=True)
     subprocess.run(["dbt", "seed", *DBT_ARGS], check=True)
     subprocess.run(["dbt", "run", *DBT_ARGS], check=True)
     subprocess.run(["dbt", "docs", "generate", *DBT_ARGS], check=True)
 
 
-def test_compute_doc(setup_dbt):
+def test_compute_doc(session_setup_dbt):
     report = do_compute(Path(DBT_PROJECT_PATH), cov_type=CoverageType.DOC)
 
     assert len(report.covered) == 15
     assert len(report.total) == 38
 
 
-def test_compute_test(setup_dbt):
+def test_compute_test(session_setup_dbt):
     report = do_compute(Path(DBT_PROJECT_PATH), cov_type=CoverageType.TEST)
 
     assert len(report.covered) == 14
     assert len(report.total) == 38
 
 
-def test_compute_path_filter(setup_dbt):
+def test_compute_path_filter(session_setup_dbt):
     report = do_compute(
         Path(DBT_PROJECT_PATH),
         cov_type=CoverageType.DOC,
@@ -87,7 +92,7 @@ def test_compute_path_filter(setup_dbt):
     assert len(report.total) == 11
 
 
-def test_compute_path_exclusion_filter(setup_dbt):
+def test_compute_path_exclusion_filter(session_setup_dbt):
     report = do_compute(
         Path(DBT_PROJECT_PATH),
         cov_type=CoverageType.DOC,
@@ -100,7 +105,7 @@ def test_compute_path_exclusion_filter(setup_dbt):
     assert len(report.total) == 27
 
 
-def test_compute_both_path_filters(setup_dbt):
+def test_compute_both_path_filters(session_setup_dbt):
     report = do_compute(
         Path(DBT_PROJECT_PATH),
         cov_type=CoverageType.DOC,
