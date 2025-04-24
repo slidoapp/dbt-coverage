@@ -96,58 +96,52 @@ class Catalog:
 
     tables: Dict[str, Table]
 
-    def filter_tables(self, model_path_filter: List[str]) -> Catalog:
+    def filter_tables(
+        self, model_path_filter: List[str] | None, model_path_exclusion_filter: List[str] | None
+    ) -> Catalog:
         """
-        Filters ``Catalog``'s ``tables`` attribute to ``Tables`` that have the
-        ``model_path_filter`` value at the start of their ``original_file_path``.
+        Filters ``Catalog``'s ``tables`` based on their paths.
+
+        Two filters are applied (if their respective arguments are provided):
+
+        - ``Tables`` whose ``original_file_path`` start with the ``model_path_filter`` are kept.
+        - ``Tables`` whose ``original_file_path`` start with the ``model_path_exclusion_filter``
+          are excluded.
 
         Args:
-            model_path_filter: the model_path string(s) to filter tables on, (matches using
-                the ``startswith`` operator)
+            model_path_filter: The model_path string(s) to filter tables on. Tables matched using
+                the ``startswith`` operator are kept. Use None if the filter should not be applied.
+            model_path_exclusion_filter: The model_path string(s) to filter tables on. Tables
+                matched using the ``startswith`` operator are excluded. Use None if the filter
+                should not be applied.
 
         Returns:
-            New ``Catalog`` instance containing only ``Table``s that passed the filter
+            New ``Catalog`` instance containing only ``Table``s that passed the filter.
         """
 
-        model_path_filter = tuple(model_path_filter)
-        tables = {
-            t_id: t
-            for t_id, t in self.tables.items()
-            if t.original_file_path.startswith(model_path_filter)
-        }
+        tables = self.tables.copy()
+
+        if model_path_filter is not None:
+            model_path_filter = tuple(model_path_filter)
+            tables = {
+                t_id: t
+                for t_id, t in tables.items()
+                if t.original_file_path.startswith(model_path_filter)
+            }
+
+        if model_path_exclusion_filter is not None:
+            model_path_exclusion_filter = tuple(model_path_exclusion_filter)
+            tables = {
+                t_id: t
+                for t_id, t in tables.items()
+                if not t.original_file_path.startswith(model_path_exclusion_filter)
+            }
 
         logging.info(
             "Successfully filtered tables. Total tables post-filtering: %d tables", len(tables)
         )
 
         return Catalog(tables=tables)
-
-    def exclude_table_folders(self, model_path_exclusion_filter: List[str]) -> Catalog:
-        """
-        Filters ``Catalog``'s ``tables`` attribute to ``Tables`` that have the
-        ``model_path_exclusion_filter`` value that matches the name of a folder found within the ``original_file_path`` this excludes the file name.
-
-        Args:
-            model_path_exclusion_filter: the folder name string(s) to filter tables on, (matches using
-                the ``match`` operator)
-
-        Returns:
-            New ``Catalog`` instance containing only ``Table``s that passed the filter
-        """
-        exclusions = tuple(model_path_exclusion_filter)
-        # Copy the list of tables as we iterate over multiple exclusion criteria
-        remaining_tables = self.tables.copy()
-        for criteria in exclusions:
-            for t_id, t in self.tables.items():
-                # Does this file's folder structure match the exclusion criteria
-                if Path(t.original_file_path).parents[0].match(criteria):
-                    # Remove it for the working table
-                    remaining_tables.pop(t_id)
-
-        logging.info(
-            "Successfully filtered tables' folder structure. Total tables post-filtering: %d tables", len(remaining_tables)
-        )
-        return Catalog(tables = remaining_tables)
 
     @staticmethod
     def from_nodes(nodes, manifest: Manifest):
@@ -839,7 +833,7 @@ def do_compute(
     cov_fail_under: float = None,
     cov_fail_compare: Path = None,
     model_path_filter: Optional[List[str]] = None,
-    model_path_exlusion_filter: Optional[List[str]] = None,
+    model_path_exclusion_filter: Optional[List[str]] = None,
     cov_format: CoverageFormat = CoverageFormat.STRING_TABLE,
 ):
     """
@@ -849,17 +843,13 @@ def do_compute(
     """
 
     catalog = load_files(project_dir, run_artifacts_dir)
-    if model_path_filter:
-        catalog = catalog.filter_tables(model_path_filter)
+    if model_path_filter or model_path_exclusion_filter:
+        catalog = catalog.filter_tables(model_path_filter, model_path_exclusion_filter)
         if not catalog.tables:
             raise ValueError(
                 "After filtering, the Catalog contains no tables. Ensure your model_path_filter "
                 "is correct."
             )
-        
-    if model_path_exlusion_filter:
-        catalog = catalog.exclude_table_folders(model_path_exlusion_filter)
-
 
     coverage_report = compute_coverage(catalog, cov_type)
 
@@ -911,10 +901,10 @@ def compute(
         "Normally used to prevent coverage drop between subsequent tests.",
     ),
     model_path_filter: Optional[List[str]] = typer.Option(
-        None, help="The model_path string(s) to filter tables on."
+        None, help="The model_path string(s) to filter tables on keeping tables that match."
     ),
     model_path_exclusion_filter: Optional[List[str]] = typer.Option(
-        None, help="The sub-folder glob-style pattern to exclude tables from"
+        None, help="The model_path string(s) to filter tables on excluding tables that match."
     ),
     cov_format: CoverageFormat = typer.Option(
         CoverageFormat.STRING_TABLE,
