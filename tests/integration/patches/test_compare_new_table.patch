@@ -1,0 +1,11 @@
+Index: models/new_table.sql
+===================================================================
+diff --git a/models/new_table.sql b/models/new_table.sql
+new file mode 100644
+--- /dev/null	(date 1745560791608)
++++ b/models/new_table.sql	(date 1745560791608)
+@@ -0,0 +1,4 @@
++select
++    1 as col_1,
++    2 as col_2,
++    3 as col_3
