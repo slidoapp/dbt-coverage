@@ -103,7 +103,7 @@ Total                                                 14/38     36.8%
 
 You can also choose a subset of tables to compare using one or multiple `--model-path-filter` and/or `--model-path-exclusion-filter` options. Here are some examples.
 
-Compute doc coverage for a subset of tables, print it and write it to `coverage-doc.json` file.
+Use the `--model-path-filter`.
 
 ```console
 $ cd jaffle_shop
@@ -120,7 +120,7 @@ jaffle_shop.stg_payments               0/4       0.0%
 Total                                  0/11      0.0%
 ```
 
-Compute doc coverage for a subset of tables, print it and write it to `coverage-doc.json` file.
+Use the `--model-path-exclusion-filter`.
 
 ```console
 $ dbt-coverage compute doc --cov-report coverage-doc.json --model-path-exclusion-filter models/staging/
@@ -136,8 +136,7 @@ dbt_sweco.raw_payments                                 0/4       0.0%
 Total                                                 15/27     55.6%
 ```
 
-Compute doc coverage for a subset of tables, print it and write it to `coverage-doc.json` file. The same can be done
-with `--model-path-exclusion-filter`.
+Use multiple paths. The same can be done with `--model-path-exclusion-filter`.
 
 ```console
 $ dbt-coverage compute doc --cov-report coverage-doc.json --model-path-filter models/orders.sql --model-path-filter models/staging/
