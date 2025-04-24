@@ -61,14 +61,55 @@ def setup_dbt(setup_postgres):
 
 
 def test_compute_doc(setup_dbt):
-    res = do_compute(Path(DBT_PROJECT_PATH), cov_type=CoverageType.DOC)
+    report = do_compute(Path(DBT_PROJECT_PATH), cov_type=CoverageType.DOC)
 
-    assert len(res.covered) == 15
-    assert len(res.total) == 38
+    assert len(report.covered) == 15
+    assert len(report.total) == 38
 
 
 def test_compute_test(setup_dbt):
-    res = do_compute(Path(DBT_PROJECT_PATH), cov_type=CoverageType.TEST)
+    report = do_compute(Path(DBT_PROJECT_PATH), cov_type=CoverageType.TEST)
 
-    assert len(res.covered) == 14
-    assert len(res.total) == 38
+    assert len(report.covered) == 14
+    assert len(report.total) == 38
+
+
+def test_compute_path_filter(setup_dbt):
+    report = do_compute(
+        Path(DBT_PROJECT_PATH),
+        cov_type=CoverageType.DOC,
+        model_path_filter=["models/staging"],
+    )
+
+    assert len(report.subentities) == 3
+    assert all("stg" in table for table in report.subentities)
+    assert len(report.covered) == 0
+    assert len(report.total) == 11
+
+
+def test_compute_path_exclusion_filter(setup_dbt):
+    report = do_compute(
+        Path(DBT_PROJECT_PATH),
+        cov_type=CoverageType.DOC,
+        model_path_exclusion_filter=["models/staging"],
+    )
+
+    assert len(report.subentities) == 5
+    assert not any("stg" in table for table in report.subentities)
+    assert len(report.covered) == 15
+    assert len(report.total) == 27
+
+
+def test_compute_both_path_filters(setup_dbt):
+    report = do_compute(
+        Path(DBT_PROJECT_PATH),
+        cov_type=CoverageType.DOC,
+        model_path_filter=["models/staging"],
+        model_path_exclusion_filter=["models/staging/stg_customers"],
+    )
+
+    assert len(report.subentities) == 2
+    assert all("stg" in table for table in report.subentities)
+    assert "jaffle_shop.stg_customers" not in report.subentities
+    assert len(report.covered) == 0
+    assert len(report.total) == 8

@@ -80,7 +80,9 @@ jaffle_shop.stg_orders                                 0/4       0.0%
 jaffle_shop.stg_payments                               0/4       0.0%
 =====================================================================
 Total                                                 15/38     39.5%
+```
 
+```console
 $ dbt-coverage compute test --cov-report coverage-test.json  # Compute test coverage, print it and write it to coverage-test.json file
 
 Coverage report
@@ -97,15 +99,17 @@ jaffle_shop.stg_payments                               2/4      50.0%
 Total                                                 14/38     36.8%
 ```
 
-#### Filtering model paths with `--model-path-filter`
+#### Filtering model paths with `--model-path-filter` or `--model-path-exclusion-filter`
 
-You can also choose a subset of tables to compare using one or multiple `--model-path-filter` options.
+You can also choose a subset of tables to compare using one or multiple `--model-path-filter` and/or `--model-path-exclusion-filter` options. Here are some examples.
+
+Use the `--model-path-filter`.
 
 ```console
 $ cd jaffle_shop
 $ dbt run  # Materialize models
 $ dbt docs generate  # Generate catalog.json and manifest.json
-$ dbt-coverage compute doc --cov-report coverage-doc.json --model-path-filter models/staging/  # Compute doc coverage for a subset of tables, print it and write it to coverage-doc.json file
+$ dbt-coverage compute doc --cov-report coverage-doc.json --model-path-filter models/staging/
 
 Coverage report
 ======================================================
@@ -114,8 +118,28 @@ jaffle_shop.stg_orders                 0/4       0.0%
 jaffle_shop.stg_payments               0/4       0.0%
 ======================================================
 Total                                  0/11      0.0%
+```
 
-$ dbt-coverage compute doc --cov-report coverage-doc.json --model-path-filter models/orders.sql --model-path-filter models/staging/  # Compute doc coverage for a subset of tables, print it and write it to coverage-doc.json file
+Use the `--model-path-exclusion-filter`.
+
+```console
+$ dbt-coverage compute doc --cov-report coverage-doc.json --model-path-exclusion-filter models/staging/
+
+Coverage report (doc)
+=====================================================================
+dbt_sweco.customers                                    6/7      85.7%
+dbt_sweco.orders                                       9/9     100.0%
+dbt_sweco.raw_customers                                0/3       0.0%
+dbt_sweco.raw_orders                                   0/4       0.0%
+dbt_sweco.raw_payments                                 0/4       0.0%
+=====================================================================
+Total                                                 15/27     55.6%
+```
+
+Use multiple paths. The same can be done with `--model-path-exclusion-filter`.
+
+```console
+$ dbt-coverage compute doc --cov-report coverage-doc.json --model-path-filter models/orders.sql --model-path-filter models/staging/
 
 Coverage report
 ======================================================
@@ -125,6 +149,19 @@ jaffle_shop.stg_orders                 0/4       0.0%
 jaffle_shop.stg_payments               0/4       0.0%
 ======================================================
 Total                                  0/20      0.0%
+```
+
+Use both `--model-path-filter` and `--model-path-exclusion-filter`.
+
+```console
+$ dbt-coverage compute doc --cov-report coverage-doc.json --model-path-filter models/staging --model-path-exclusion-filter models/staging/stg_customers
+
+Coverage report (doc)
+=====================================================================
+dbt_sweco.stg_orders                                   0/4       0.0%
+dbt_sweco.stg_payments                                 0/4       0.0%
+=====================================================================
+Total                                                  0/8       0.0%
 ```
 
 #### Markdown output with `--cov-format`
