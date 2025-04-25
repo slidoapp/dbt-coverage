@@ -1,0 +1,14 @@
+Index: models/customers.sql
+===================================================================
+diff --git a/models/customers.sql b/models/customers.sql
+--- a/models/customers.sql	(revision b0b77aac70f490770a1e77c02bb0a2b8771d3203)
++++ b/models/customers.sql	(date 1745501614879)
+@@ -54,7 +54,8 @@
+         customer_orders.first_order,
+         customer_orders.most_recent_order,
+         customer_orders.number_of_orders,
+-        customer_payments.total_amount as customer_lifetime_value
++        customer_payments.total_amount as customer_lifetime_value,
++        1 as new_column
+
+     from customers
