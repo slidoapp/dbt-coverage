@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Support for `dbt==1.9`. [#85]
 
+### Changed
+- Refactor tests. [#86]
+
 ## [0.3.9] - 2025-04-24
 ### Added
 - Support for model exclusion by path. [#82] _Thanks to @vvvito!_

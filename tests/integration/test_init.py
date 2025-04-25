@@ -1,3 +1,4 @@
+import os
 import subprocess
 from pathlib import Path
 
@@ -59,7 +60,10 @@ def session_setup_dbt(setup_postgres):
     This is a session fixture that can be used to accelerate tests if no tests change the models.
     """
 
-    subprocess.run(["dbt", "clean", *DBT_ARGS], check=True)
+    # Workaround for a bug - https://github.com/dbt-labs/dbt-core/issues/9138
+    env = {**os.environ, "DBT_CLEAN_PROJECT_FILES_ONLY": "false"}
+    subprocess.run(["dbt", "clean", *DBT_ARGS], env=env, check=True)
+
     subprocess.run(["dbt", "seed", *DBT_ARGS], check=True)
     subprocess.run(["dbt", "run", *DBT_ARGS], check=True)
     subprocess.run(["dbt", "docs", "generate", *DBT_ARGS], check=True)
