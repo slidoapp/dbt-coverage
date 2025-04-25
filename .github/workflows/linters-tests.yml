@@ -11,7 +11,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -30,17 +30,26 @@ jobs:
         with:
           submodules: true
 
-      # Needed for integration tests against dbt 1.0
+      # Different versions of python are needed by different versions of dbt
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      # Needed for the rest of integration tests
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
