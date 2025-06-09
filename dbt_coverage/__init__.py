@@ -64,6 +64,7 @@ class Table:
     name: str
     original_file_path: str
     columns: Dict[str, Column]
+    unit_test_count: int = 0
 
     @staticmethod
     def from_node(node, manifest: Manifest) -> Table:
@@ -159,6 +160,7 @@ class Manifest:
     seeds: Dict[str, Dict[str, Dict[str, Dict]]]
     snapshots: Dict[str, Dict[str, Dict[str, Dict]]]
     tests: Dict[str, Dict[str, List[Dict]]]
+    unit_tests: Dict[str, List[Dict]]
 
     @classmethod
     def from_nodes(cls, manifest_nodes: Dict[str, Dict]) -> Manifest:
@@ -209,8 +211,9 @@ class Manifest:
         }
 
         tests = cls._parse_tests(manifest_nodes)
+        unit_tests = cls._parse_unit_tests(manifest_nodes)
 
-        return Manifest(sources, models, seeds, snapshots, tests)
+        return Manifest(sources, models, seeds, snapshots, tests, unit_tests)
 
     def get_table(self, table_id):
         source_candidate = self.sources.get(table_id)
@@ -270,6 +273,27 @@ class Manifest:
 
         return tests
 
+    @classmethod
+    def _parse_unit_tests(cls, manifest_nodes: Dict[str, Dict]) -> Dict[str, List[Dict]]:
+        """Parses unit tests from manifest.json nodes."""
+
+        unit_tests = {}
+        for node in manifest_nodes.values():
+            if node["resource_type"] != "unit_test":
+                continue
+
+            depends_on = node["depends_on"]["nodes"]
+            if not depends_on:
+                continue
+
+            table_id = depends_on[0]
+
+            # Create a model unique_id pattern to match against models
+            # Unit tests are associated with models, not individual columns
+            unit_tests.setdefault(table_id, []).append(node)
+
+        return unit_tests
+
     @staticmethod
     def _full_table_name(table):
         return f"{table['schema']}.{table['name']}".lower()
@@ -301,6 +325,7 @@ class CoverageReport:
         coverage: Percentage of documented columns.
         subentities: ``CoverageReport``s for each subentity of the entity, i.e. for ``Table``s of
             ``Catalog`` and for ``Column``s of ``Table``s.
+        unit_test_count: For unit test coverage, the number of unit tests for this entity.
     """
 
     class EntityType(Enum):
@@ -321,6 +346,7 @@ class CoverageReport:
     misses: Set[ColumnRef] = field(init=False)
     coverage: float = field(init=False)
     subentities: Dict[str, CoverageReport]
+    unit_test_count: int = 0
 
     def __post_init__(self):
         if self.covered is not None and self.total is not None and self.total != 0:
@@ -338,8 +364,9 @@ class CoverageReport:
         }
         covered = set(col for table_report in subentities.values() for col in table_report.covered)
         total = set(col for table_report in subentities.values() for col in table_report.total)
+        total_unit_tests = sum(table_report.unit_test_count for table_report in subentities.values())
 
-        return CoverageReport(cls.EntityType.CATALOG, cov_type, None, covered, total, subentities)
+        return CoverageReport(cls.EntityType.CATALOG, cov_type, None, covered, total, subentities, total_unit_tests)
 
     @classmethod
     def from_table(cls, table: Table, cov_type: CoverageType):
@@ -358,7 +385,7 @@ class CoverageReport:
         )
 
         return CoverageReport(
-            cls.EntityType.TABLE, cov_type, table.name, covered, total, subentities
+            cls.EntityType.TABLE, cov_type, table.name, covered, total, subentities, table.unit_test_count
         )
 
     @classmethod
@@ -379,19 +406,19 @@ class CoverageReport:
         if self.entity_type == CoverageReport.EntityType.TABLE:
             return (
                 f"| {self.entity_name:70} | {len(self.covered):5}/{len(self.total):<5} | "
-                f"{self.coverage * 100:5.1f}% |"
+                f"{self.coverage * 100:5.1f}% | {self.unit_test_count:3} |"
             )
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
             buf.write(f"# Coverage report ({self.cov_type.value})\n")
-            buf.write("| Model | Columns Covered | % |\n")
-            buf.write("|:------|----------------:|:-:|\n")
+            buf.write("| Model | Columns Covered | % | Unit Tests |\n")
+            buf.write("|:------|----------------:|:-:|:----------:|\n")
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_markdown_table() + "\n")
             buf.write(
                 f"| {'Total':70} | {len(self.covered):5}/{len(self.total):<5} | "
-                f"{self.coverage * 100:5.1f}% |\n"
+                f"{self.coverage * 100:5.1f}% | {self.unit_test_count:3} |\n"
             )
 
             return buf.getvalue()
@@ -405,19 +432,19 @@ class CoverageReport:
         if self.entity_type == CoverageReport.EntityType.TABLE:
             return (
                 f"{self.entity_name:50} {len(self.covered):5}/{len(self.total):<5} "
-                f"{self.coverage * 100:5.1f}%"
+                f"{self.coverage * 100:5.1f}% {self.unit_test_count:3} unit tests"
             )
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
             buf.write(f"Coverage report ({self.cov_type.value})\n")
-            buf.write("=" * 69 + "\n")
+            buf.write("=" * 85 + "\n")
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_formatted_string() + "\n")
-            buf.write("=" * 69 + "\n")
+            buf.write("=" * 85 + "\n")
             buf.write(
                 f"{'Total':50} {len(self.covered):5}/{len(self.total):<5} "
-                f"{self.coverage * 100:5.1f}%\n"
+                f"{self.coverage * 100:5.1f}% {self.unit_test_count:3} unit tests\n"
             )
 
             return buf.getvalue()
@@ -442,6 +469,7 @@ class CoverageReport:
                 "total": len(self.total),
                 "coverage": self.coverage,
                 "columns": [col_report.to_dict() for col_report in self.subentities.values()],
+                "unit_test_count": self.unit_test_count,
             }
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             return {
@@ -450,6 +478,7 @@ class CoverageReport:
                 "total": len(self.total),
                 "coverage": self.coverage,
                 "tables": [table_report.to_dict() for table_report in self.subentities.values()],
+                "unit_test_count": self.unit_test_count,
             }
         else:
             raise TypeError(
@@ -463,6 +492,7 @@ class CoverageReport:
                 table_report["name"]: CoverageReport.from_dict(table_report, cov_type)
                 for table_report in report["tables"]
             }
+            unit_test_count = report.get("unit_test_count", 0)
             return CoverageReport(
                 CoverageReport.EntityType.CATALOG,
                 cov_type,
@@ -470,6 +500,7 @@ class CoverageReport:
                 set(col for tbl in subentities.values() for col in tbl.covered),
                 set(col for tbl in subentities.values() for col in tbl.total),
                 subentities,
+                unit_test_count,
             )
         elif "columns" in report:
             table_name = report["name"]
@@ -477,6 +508,7 @@ class CoverageReport:
                 col_report["name"]: CoverageReport.from_dict(col_report, cov_type)
                 for col_report in report["columns"]
             }
+            unit_test_count = report.get("unit_test_count", 0)
             return CoverageReport(
                 CoverageReport.EntityType.TABLE,
                 cov_type,
@@ -492,6 +524,7 @@ class CoverageReport:
                     for col in col_report.total
                 ),
                 subentities,
+                unit_test_count,
             )
         else:
             column_name = report["name"]
@@ -731,7 +764,7 @@ def load_manifest(project_dir: Path, run_artifacts_dir: Path) -> Manifest:
 
     check_manifest_version(manifest_json)
 
-    manifest_nodes = {**manifest_json["sources"], **manifest_json["nodes"]}
+    manifest_nodes = {**manifest_json["sources"], **manifest_json["nodes"], **manifest_json["unit_tests"]}
     manifest = Manifest.from_nodes(manifest_nodes)
 
     return manifest
@@ -771,6 +804,10 @@ def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
             doc = manifest_column.get("description")
             catalog_column.doc = Column.is_valid_doc(doc)
             catalog_column.test = Column.is_valid_test(manifest_column_tests)
+
+        # Set unit test count for the table
+        table_unit_tests = manifest.unit_tests.get(table_id, [])
+        catalog_table.unit_test_count = len(table_unit_tests)
 
     return catalog
 
