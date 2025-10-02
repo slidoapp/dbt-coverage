@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import textwrap
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
@@ -31,7 +32,7 @@ class CoverageType(Enum):
     UNIT_TEST = "unit-test"
 
 
-class CoverageFormat(str, Enum):
+class OutputFormat(str, Enum):
     STRING_TABLE = "string"
     MARKDOWN_TABLE = "markdown"
 
@@ -632,7 +633,7 @@ class CoverageDiff:
 
         return res
 
-    def summary(self):
+    def summary(self, output_format: OutputFormat):
         buf = io.StringIO()
 
         if self.after.entity_type != CoverageReport.EntityType.CATALOG:
@@ -640,81 +641,127 @@ class CoverageDiff:
                 f"Unsupported report_type for summary method: " f"{self.after.entity_type}"
             )
 
-        buf.write(f"{'':10}{'before':>10}{'after':>10}{'+/-':>15}\n")
-        buf.write("=" * 45 + "\n")
-
         before_cov = self.before.coverage if self.before.coverage is not None else 0.0
         after_cov = self.after.coverage if self.after.coverage is not None else 0.0
-        buf.write(
-            f"{'Coverage':10}{before_cov:10.2%}{after_cov:10.2%}"
-            f"{(after_cov - before_cov):+15.2%}\n"
-        )
-        buf.write("=" * 45 + "\n")
-
-        add_del = (
+        total_diff = after_cov - before_cov
+        tables_add_del = (
             f"{len(set(self.after.subentities) - set(self.before.subentities)):+d}/"
             f"{-len(set(self.before.subentities) - set(self.after.subentities)):+d}"
         )
-        buf.write(
-            f"{'Tables':10}{len(self.before.subentities):10d}"
-            f"{len(self.after.subentities):10d}"
-            f"{add_del:>15}\n"
-        )
-
-        add_del = (
+        columns_add_del = (
             f"{len(self.after.total - self.before.total):+d}/"
             f"{-len(self.before.total - self.after.total):+d}"
         )
-        buf.write(
-            f"{'Columns':10}{len(self.before.total):10d}{len(self.after.total):10d}"
-            f"{add_del:>15}\n"
-        )
-        buf.write("=" * 45 + "\n")
-
-        add_del = (
+        hits_add_del = (
             f"{len(self.after.covered - self.before.covered):+d}/"
             f"{-len(self.before.covered - self.after.covered):+d}"
         )
-        buf.write(
-            f"{'Hits':10}{len(self.before.covered):10d}{len(self.after.covered):10d}"
-            f"{add_del:>15}\n"
-        )
-
-        add_del = (
+        misses_add_del = (
             f"{len(self.after.misses - self.before.misses):+d}/"
             f"{-len(self.before.misses - self.after.misses):+d}"
         )
-        buf.write(
-            f"{'Misses':10}{len(self.before.misses):10d}{len(self.after.misses):10d}"
-            f"{add_del:>15}\n"
-        )
 
-        buf.write("=" * 45 + "\n")
+        if output_format == OutputFormat.MARKDOWN_TABLE:
+            template = textwrap.dedent(
+                """\
+                |           |       before      |       after      |         +/-       |
+                |:----------|:-----------------:|:----------------:|:-----------------:|
+                | Coverage  | {before_coverage} | {after_coverage} | {total_diff}      |
+                | Tables    | {before_tables}   | {after_tables}   | {tables_add_del}  |
+                | Columns   | {before_columns}  | {after_columns}  | {columns_add_del} |
+                | Hits      | {before_hits}     | {after_hits}     | {hits_add_del}    |
+                | Misses    | {before_misses}   | {after_misses}   | {misses_add_del}  |
+                """
+            )
+
+            formatted = template.format(
+                before_coverage=f"{before_cov:.2%}",
+                after_coverage=f"{after_cov:.2%}",
+                total_diff=f"{total_diff:.2%}",
+                before_tables=len(self.before.subentities),
+                after_tables=len(self.after.subentities),
+                tables_add_del=tables_add_del,
+                before_columns=len(self.before.total),
+                after_columns=len(self.after.total),
+                columns_add_del=columns_add_del,
+                before_hits=len(self.before.covered),
+                after_hits=len(self.after.covered),
+                hits_add_del=hits_add_del,
+                before_misses=len(self.before.misses),
+                after_misses=len(self.after.misses),
+                misses_add_del=misses_add_del,
+            )
+
+            buf.write(formatted)
+        elif output_format == OutputFormat.STRING_TABLE:
+            buf.write(f"{'':10}{'before':>10}{'after':>10}{'+/-':>15}\n")
+            buf.write("=" * 45 + "\n")
+
+            buf.write(
+                f"{'Coverage':10}{before_cov:10.2%}{after_cov:10.2%}" f"{total_diff:+15.2%}\n"
+            )
+            buf.write("=" * 45 + "\n")
+
+            buf.write(
+                f"{'Tables':10}{len(self.before.subentities):10d}"
+                f"{len(self.after.subentities):10d}"
+                f"{tables_add_del:>15}\n"
+            )
+
+            buf.write(
+                f"{'Columns':10}{len(self.before.total):10d}{len(self.after.total):10d}"
+                f"{columns_add_del:>15}\n"
+            )
+            buf.write("=" * 45 + "\n")
+
+            buf.write(
+                f"{'Hits':10}{len(self.before.covered):10d}{len(self.after.covered):10d}"
+                f"{hits_add_del:>15}\n"
+            )
+
+            buf.write(
+                f"{'Misses':10}{len(self.before.misses):10d}{len(self.after.misses):10d}"
+                f"{misses_add_del:>15}\n"
+            )
+
+            buf.write("=" * 45 + "\n")
+        else:
+            raise ValueError(f"Unsupported output_format: {output_format}")
 
         return buf.getvalue()
 
-    def new_misses_summary(self):
+    def new_misses_summary(self, output_format: OutputFormat, last: bool = False):
         if self.after.entity_type == CoverageReport.EntityType.COLUMN:
-            return self._new_miss_summary_row()
+            return self._new_miss_summary_row(output_format, last)
 
         elif self.after.entity_type == CoverageReport.EntityType.TABLE:
             buf = io.StringIO()
 
-            buf.write(self._new_miss_summary_row())
+            buf.write(self._new_miss_summary_row(output_format))
             if self.after.cov_type != CoverageType.UNIT_TEST:  # Unit tests work on the table level
-                for col in self.new_misses.values():
-                    buf.write(col.new_misses_summary())
+                for i, col in enumerate(self.new_misses.values()):
+                    last = i == len(self.new_misses) - 1
+                    buf.write(col.new_misses_summary(output_format, last=last))
 
             return buf.getvalue()
 
         elif self.after.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
-            buf.write("=" * 94 + "\n")
-            buf.write(self._new_miss_summary_row())
-            buf.write("=" * 94 + "\n")
-            for table in self.new_misses.values():
-                buf.write(table.new_misses_summary())
+            if output_format == OutputFormat.MARKDOWN_TABLE:
+                buf.write("|     | before (%) | after (%) |\n")
+                buf.write("|:----|:----------:|:---------:|\n")
+                buf.write(self._new_miss_summary_row(output_format))
+                for table in self.new_misses.values():
+                    buf.write(table.new_misses_summary(output_format))
+            elif output_format == OutputFormat.STRING_TABLE:
                 buf.write("=" * 94 + "\n")
+                buf.write(self._new_miss_summary_row(output_format))
+                buf.write("=" * 94 + "\n")
+                for table in self.new_misses.values():
+                    buf.write(table.new_misses_summary(output_format))
+                    buf.write("=" * 94 + "\n")
+            else:
+                raise ValueError(f"Unsupported output_format: {output_format}")
 
             return buf.getvalue()
 
@@ -724,13 +771,13 @@ class CoverageDiff:
                 f"{self.after.entity_type}"
             )
 
-    def _new_miss_summary_row(self):
+    def _new_miss_summary_row(self, output_format: OutputFormat, last: bool = False):
         if self.after.entity_type == CoverageReport.EntityType.CATALOG:
             title_prefix = ""
         elif self.after.entity_type == CoverageReport.EntityType.TABLE:
-            title_prefix = "- "
+            title_prefix = "┌ "
         elif self.after.entity_type == CoverageReport.EntityType.COLUMN:
-            title_prefix = "-- "
+            title_prefix = "└── " if last else "├── "
         else:
             raise TypeError(
                 f"Unsupported report_type for _new_miss_summary_row method: "
@@ -758,10 +805,23 @@ class CoverageDiff:
         )
 
         buf = io.StringIO()
-        buf.write(f"{title:50}")
-        buf.write(f"{before_covered:>5}/{before_total:<5}{before_coverage:^9}")
-        buf.write(" -> ")
-        buf.write(f"{after_covered:>5}/{after_total:<5}{after_coverage:^9}\n")
+        if output_format == OutputFormat.MARKDOWN_TABLE:
+            title = (
+                f"`{title}`"
+                if self.after.entity_type != CoverageReport.EntityType.CATALOG
+                else title
+            )
+            buf.write(
+                f"| {title} | {before_covered}/{before_total} {before_coverage} "
+                f"| {after_covered}/{after_total} {after_coverage} |\n"
+            )
+        elif output_format == OutputFormat.STRING_TABLE:
+            buf.write(f"{title:50}")
+            buf.write(f"{before_covered:>5}/{before_total:<5}{before_coverage:^9}")
+            buf.write(" -> ")
+            buf.write(f"{after_covered:>5}/{after_total:<5}{after_coverage:^9}\n")
+        else:
+            raise ValueError(f"Unsupported output_format: {output_format}")
 
         return buf.getvalue()
 
@@ -878,11 +938,13 @@ def compute_coverage(catalog: Catalog, cov_type: CoverageType):
     return coverage_report
 
 
-def compare_reports(report: CoverageReport, compare_report: CoverageReport) -> CoverageDiff:
-    diff = CoverageDiff(compare_report, report)
+def compare_reports(
+    report: CoverageReport, compare_report: CoverageReport, output_format: OutputFormat
+) -> CoverageDiff:
 
-    print(diff.summary())
-    print(diff.new_misses_summary())
+    diff = CoverageDiff(compare_report, report)
+    print(diff.summary(output_format))
+    print(diff.new_misses_summary(output_format))
 
     return diff
 
@@ -930,7 +992,7 @@ def do_compute(
     cov_fail_compare: Path = None,
     model_path_filter: Optional[List[str]] = None,
     model_path_exclusion_filter: Optional[List[str]] = None,
-    cov_format: CoverageFormat = CoverageFormat.STRING_TABLE,
+    output_format: OutputFormat = OutputFormat.STRING_TABLE,
 ):
     """
     Computes coverage for a dbt project.
@@ -949,7 +1011,7 @@ def do_compute(
 
     coverage_report = compute_coverage(catalog, cov_type)
 
-    if cov_format == CoverageFormat.MARKDOWN_TABLE:
+    if output_format == OutputFormat.MARKDOWN_TABLE:
         print(coverage_report.to_markdown_table())
     else:
         print(coverage_report.to_formatted_string())
@@ -965,7 +1027,9 @@ def do_compute(
     return coverage_report
 
 
-def do_compare(report: Path, compare_report: Path) -> CoverageDiff:
+def do_compare(
+    report: Path, compare_report: Path, output_format: OutputFormat = OutputFormat.STRING_TABLE
+) -> CoverageDiff:
     """
     Compares two coverage reports generated by the ``compute`` command.
 
@@ -974,6 +1038,7 @@ def do_compare(report: Path, compare_report: Path) -> CoverageDiff:
     Args:
         report: ``Path`` to the current report - the after state.
         compare_report: ``Path`` to the report to compare against - the before state.
+        output_format: The OutputFormat to print, either `string` or `markdown`
 
     Returns:
         The ``CoverageDiff`` between the two coverage reports.
@@ -982,7 +1047,7 @@ def do_compare(report: Path, compare_report: Path) -> CoverageDiff:
     report = read_coverage_report(report)
     compare_report = read_coverage_report(compare_report)
 
-    diff = compare_reports(report, compare_report)
+    diff = compare_reports(report, compare_report, output_format)
 
     return diff
 
@@ -1009,8 +1074,8 @@ def compute(
     model_path_exclusion_filter: Optional[List[str]] = typer.Option(
         None, help="The model_path string(s) to filter tables on excluding tables that match."
     ),
-    cov_format: CoverageFormat = typer.Option(
-        CoverageFormat.STRING_TABLE,
+    output_format: OutputFormat = typer.Option(
+        OutputFormat.STRING_TABLE,
         help="The output format to print, either `string` or `markdown`",
     ),
 ):
@@ -1025,7 +1090,7 @@ def compute(
         cov_fail_compare,
         model_path_filter,
         model_path_exclusion_filter,
-        cov_format,
+        output_format,
     )
 
 
@@ -1035,10 +1100,14 @@ def compare(
     compare_report: Path = typer.Argument(
         ..., help="Path to another coverage report to compare with - the before state."
     ),
+    output_format: OutputFormat = typer.Option(
+        OutputFormat.STRING_TABLE,
+        help="The output format to print, either `string` or `markdown`",
+    ),
 ):
     """Compare two coverage reports generated by the compute command."""
 
-    return do_compare(report, compare_report)
+    return do_compare(report, compare_report, output_format)
 
 
 @app.callback()
