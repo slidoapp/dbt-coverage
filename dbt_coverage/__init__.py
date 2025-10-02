@@ -30,7 +30,7 @@ class CoverageType(Enum):
     TEST = "test"
 
 
-class CoverageFormat(str, Enum):
+class Format(str, Enum):
     STRING_TABLE = "string"
     MARKDOWN_TABLE = "markdown"
 
@@ -142,6 +142,33 @@ class Catalog:
         )
 
         return Catalog(tables=tables)
+
+    def exclude_table_folders(self, model_path_exclusion_filter: List[str]) -> Catalog:
+        """
+        Filters ``Catalog``'s ``tables`` attribute to ``Tables`` that have the
+        ``model_path_exclusion_filter`` value that matches the name of a folder found within the ``original_file_path`` this excludes the file name.
+
+        Args:
+            model_path_exclusion_filter: the folder name string(s) to filter tables on, (matches using
+                the ``match`` operator)
+
+        Returns:
+            New ``Catalog`` instance containing only ``Table``s that passed the filter
+        """
+        exclusions = tuple(model_path_exclusion_filter)
+        # Copy the list of tables as we iterate over multiple exclusion criteria
+        remaining_tables = self.tables.copy()
+        for criteria in exclusions:
+            for t_id, t in self.tables.items():
+                # Does this file's folder structure match the exclusion criteria
+                if Path(t.original_file_path).parents[0].match(criteria):
+                    # Remove it for the working table
+                    remaining_tables.pop(t_id)
+
+        logging.info(
+            "Successfully filtered tables' folder structure. Total tables post-filtering: %d tables", len(remaining_tables)
+        )
+        return Catalog(tables = remaining_tables)
 
     @staticmethod
     def from_nodes(nodes, manifest: Manifest):
@@ -514,6 +541,7 @@ class CoverageDiff:
 
     before: Optional[CoverageReport]
     after: CoverageReport
+    report_format: Format = field(default=Format.STRING_TABLE)
     new_misses: Dict[str, CoverageDiff] = field(init=False)
 
     def __post_init__(self):
@@ -525,7 +553,6 @@ class CoverageDiff:
             f"Cannot compare reports with different report_types: {self.before.report_type} and "
             f"{self.after.entity_type}"
         )
-
         self.new_misses = self.find_new_misses()
 
     def find_new_misses(self):
@@ -547,89 +574,138 @@ class CoverageDiff:
                 else None
             )
             after_entity = self.after.subentities[new_misses_entity_name]
-            res[new_misses_entity_name] = CoverageDiff(before_entity, after_entity)
+            res[new_misses_entity_name] = CoverageDiff(before_entity, after_entity, self.report_format)
 
         return res
 
     def summary(self):
         buf = io.StringIO()
-
         if self.after.entity_type != CoverageReport.EntityType.CATALOG:
             raise TypeError(
                 f"Unsupported report_type for summary method: " f"{self.after.entity_type}"
             )
+        
+        total_variance = (self.after.coverage - self.before.coverage)
+        table_variance = (
+                f"{len(set(self.after.subentities) - set(self.before.subentities)):+d}/"
+                f"{-len(set(self.before.subentities) - set(self.after.subentities)):+d}"
+            )
+        column_variance = (
+                f"{len(self.after.total - self.before.total):+d}/"
+                f"{-len(self.before.total - self.after.total):+d}"
+            )
+        hit_variance = (
+                f"{len(self.after.covered - self.before.covered):+d}/"
+                f"{-len(self.before.covered - self.after.covered):+d}"
+            )
+        miss_variance = (
+                f"{len(self.after.misses - self.before.misses):+d}/"
+                f"{-len(self.before.misses - self.after.misses):+d}"
+            )
+        if self.report_format == Format.MARKDOWN_TABLE:
+            template = """
+|           |   before      |      after      |  +/- |
+|:----------|:-------------:|:---------------:|:----:|
+| Coverage  | [before_coverage] | [after_coverage] | [variance_coverage] |
+| Tables    | [before_tables]    | [after_tables]    | [variance_tables]    |
+| Columns   | [before_columns]   | [after_columns]   | [variance_columns]   |
+| Hits      | [before_hits]      | [after_hits]      | [variance_hits]      |
+| Misses    | [before_misses]    | [after_misses]    | [variance_misses]    |
+            """
 
-        buf.write(f"{'':10}{'before':>10}{'after':>10}{'+/-':>15}\n")
-        buf.write("=" * 45 + "\n")
-        buf.write(
-            f"{'Coverage':10}{self.before.coverage:10.2%}{self.after.coverage:10.2%}"
-            f"{(self.after.coverage - self.before.coverage):+15.2%}\n"
-        )
-        buf.write("=" * 45 + "\n")
+            # Coverage Line
+            template = template.replace("[before_coverage]", f"{self.before.coverage:10.2%}") \
+                .replace("[after_coverage]", f"{self.after.coverage:10.2%}") \
+                    .replace("[variance_coverage]", f"{total_variance:10.2%}")
+            # Tables Line
+            template = template.replace("[before_tables]", f"{len(self.before.subentities):10d}") \
+                .replace("[after_tables]", f"{len(self.after.subentities):10d}") \
+                    .replace("[variance_tables]", table_variance)
+            
+            # Columns Line
+            template = template.replace("[before_columns]", f"{len(self.before.total):10d}") \
+                .replace("[after_columns]", f"{len(self.after.total):10d}") \
+                    .replace("[variance_columns]", column_variance)
+            
+            # Hits Line
+            template = template.replace("[before_hits]", f"{len(self.before.covered):10d}") \
+                .replace("[after_hits]", f"{len(self.after.covered):10d}") \
+                    .replace("[variance_hits]", hit_variance)
+            
+            # Misses Line
+            template = template.replace("[before_misses]", f"{len(self.before.misses):10d}") \
+                .replace("[after_misses]", f"{len(self.after.misses):10d}") \
+                    .replace("[variance_misses]", miss_variance)
 
-        add_del = (
-            f"{len(set(self.after.subentities) - set(self.before.subentities)):+d}/"
-            f"{-len(set(self.before.subentities) - set(self.after.subentities)):+d}"
-        )
-        buf.write(
-            f"{'Tables':10}{len(self.before.subentities):10d}"
-            f"{len(self.after.subentities):10d}"
-            f"{add_del:>15}\n"
-        )
+            buf.write(template)
+        else:
 
-        add_del = (
-            f"{len(self.after.total - self.before.total):+d}/"
-            f"{-len(self.before.total - self.after.total):+d}"
-        )
-        buf.write(
-            f"{'Columns':10}{len(self.before.total):10d}{len(self.after.total):10d}"
-            f"{add_del:>15}\n"
-        )
-        buf.write("=" * 45 + "\n")
+            buf.write(f"{'':10}{'before':>10}{'after':>10}{'+/-':>15}\n")
+            buf.write("=" * 45 + "\n")
+            buf.write(
+                f"{'Coverage':10}{self.before.coverage:10.2%}{self.after.coverage:10.2%}"
+                f"{total_variance:+15.2%}\n"
+            )
+            buf.write("=" * 45 + "\n")
 
-        add_del = (
-            f"{len(self.after.covered - self.before.covered):+d}/"
-            f"{-len(self.before.covered - self.after.covered):+d}"
-        )
-        buf.write(
-            f"{'Hits':10}{len(self.before.covered):10d}{len(self.after.covered):10d}"
-            f"{add_del:>15}\n"
-        )
+            buf.write(
+                f"{'Tables':10}{len(self.before.subentities):10d}"
+                f"{len(self.after.subentities):10d}"
+                f"{table_variance:>15}\n"
+            )
 
-        add_del = (
-            f"{len(self.after.misses - self.before.misses):+d}/"
-            f"{-len(self.before.misses - self.after.misses):+d}"
-        )
-        buf.write(
-            f"{'Misses':10}{len(self.before.misses):10d}{len(self.after.misses):10d}"
-            f"{add_del:>15}\n"
-        )
+            buf.write(
+                f"{'Columns':10}{len(self.before.total):10d}{len(self.after.total):10d}"
+                f"{column_variance:>15}\n"
+            )
+            buf.write("=" * 45 + "\n")
 
-        buf.write("=" * 45 + "\n")
+            buf.write(
+                f"{'Hits':10}{len(self.before.covered):10d}{len(self.after.covered):10d}"
+                f"{hit_variance:>15}\n"
+            )
+
+            buf.write(
+                f"{'Misses':10}{len(self.before.misses):10d}{len(self.after.misses):10d}"
+                f"{miss_variance:>15}\n"
+            )
+
+            buf.write("=" * 45 + "\n")
 
         return buf.getvalue()
 
-    def new_misses_summary(self):
+    def new_misses_summary(self, last: bool = False):
         if self.after.entity_type == CoverageReport.EntityType.COLUMN:
-            return self._new_miss_summary_row()
+            return self._new_miss_summary_row(last)
 
         elif self.after.entity_type == CoverageReport.EntityType.TABLE:
             buf = io.StringIO()
 
             buf.write(self._new_miss_summary_row())
-            for col in self.new_misses.values():
-                buf.write(col.new_misses_summary())
+            for i, col in enumerate(self.new_misses.values()): 
+                if i == len(self.new_misses) - 1 :
+                    buf.write(col.new_misses_summary(last=True))
+                else:
+                    buf.write(col.new_misses_summary())
 
             return buf.getvalue()
 
         elif self.after.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
-            buf.write("=" * 94 + "\n")
-            buf.write(self._new_miss_summary_row())
-            buf.write("=" * 94 + "\n")
-            for table in self.new_misses.values():
-                buf.write(table.new_misses_summary())
+            if self.report_format == Format.MARKDOWN_TABLE:
+                buf.write("|     | before (%) | after (%) | \n")
+                buf.write("|:----|:----------:|:--------:| \n")
+                buf.write(self._new_miss_summary_row())
+                for table in self.new_misses.values():
+                    buf.write(table.new_misses_summary())
+            else:
+                
                 buf.write("=" * 94 + "\n")
+                buf.write(self._new_miss_summary_row())
+                buf.write("=" * 94 + "\n")
+                for table in self.new_misses.values():
+                    buf.write(table.new_misses_summary())
+                    buf.write("=" * 94 + "\n")
 
             return buf.getvalue()
 
@@ -639,13 +715,13 @@ class CoverageDiff:
                 f"{self.after.entity_type}"
             )
 
-    def _new_miss_summary_row(self):
+    def _new_miss_summary_row(self, last: bool = False):
         if self.after.entity_type == CoverageReport.EntityType.CATALOG:
             title_prefix = ""
         elif self.after.entity_type == CoverageReport.EntityType.TABLE:
-            title_prefix = "- "
+            title_prefix = "┌ "
         elif self.after.entity_type == CoverageReport.EntityType.COLUMN:
-            title_prefix = "-- "
+            title_prefix = "└── " if last else "├── "
         else:
             raise TypeError(
                 f"Unsupported report_type for _new_miss_summary_row method: "
@@ -655,7 +731,7 @@ class CoverageDiff:
         title = (
             "Catalog"
             if self.after.entity_type == CoverageReport.EntityType.CATALOG
-            else self.after.entity_name
+            else f"`{self.after.entity_name}`"
         )
         title = title_prefix + title
 
@@ -666,11 +742,15 @@ class CoverageDiff:
         after_total = len(self.after.total)
         after_coverage = f"({self.after.coverage:.2%})"
 
+        
         buf = io.StringIO()
-        buf.write(f"{title:50}")
-        buf.write(f"{before_covered:>5}/{before_total:<5}{before_coverage:^9}")
-        buf.write(" -> ")
-        buf.write(f"{after_covered:>5}/{after_total:<5}{after_coverage:^9}\n")
+        if self.report_format == Format.MARKDOWN_TABLE:
+            buf.write(f"| {title} | {before_covered}/{before_total} {before_coverage} | {after_covered}/{after_total} {after_coverage} | \n")
+        else:
+            buf.write(f"{title:50}")
+            buf.write(f"{before_covered:>5}/{before_total:<5}{before_coverage:^9}")
+            buf.write(" -> ")
+            buf.write(f"{after_covered:>5}/{after_total:<5}{after_coverage:^9}\n")
 
         return buf.getvalue()
 
@@ -782,9 +862,9 @@ def compute_coverage(catalog: Catalog, cov_type: CoverageType):
     return coverage_report
 
 
-def compare_reports(report: CoverageReport, compare_report: CoverageReport) -> CoverageDiff:
-    diff = CoverageDiff(compare_report, report)
-
+def compare_reports(report: CoverageReport, compare_report: CoverageReport, output_format: Format) -> CoverageDiff:
+    
+    diff = CoverageDiff(compare_report, report, output_format)
     print(diff.summary())
     print(diff.new_misses_summary())
 
@@ -834,7 +914,7 @@ def do_compute(
     cov_fail_compare: Path = None,
     model_path_filter: Optional[List[str]] = None,
     model_path_exclusion_filter: Optional[List[str]] = None,
-    cov_format: CoverageFormat = CoverageFormat.STRING_TABLE,
+    cov_format: Format = Format.STRING_TABLE,
 ):
     """
     Computes coverage for a dbt project.
@@ -850,10 +930,14 @@ def do_compute(
                 "After filtering, the Catalog contains no tables. Ensure your model_path_filter "
                 "is correct."
             )
+        
+    if model_path_exclusion_filter:
+        catalog = catalog.exclude_table_folders(model_path_exclusion_filter)
+
 
     coverage_report = compute_coverage(catalog, cov_type)
 
-    if cov_format == CoverageFormat.MARKDOWN_TABLE:
+    if cov_format == Format.MARKDOWN_TABLE:
         print(coverage_report.to_markdown_table())
     else:
         print(coverage_report.to_formatted_string())
@@ -869,7 +953,7 @@ def do_compute(
     return coverage_report
 
 
-def do_compare(report: Path, compare_report: Path) -> CoverageDiff:
+def do_compare(report: Path, compare_report: Path, compare_format: Format = Format.STRING_TABLE) -> CoverageDiff:
     """
     Compares two coverage reports generated by the ``compute`` command.
 
@@ -878,6 +962,7 @@ def do_compare(report: Path, compare_report: Path) -> CoverageDiff:
     Args:
         report: ``Path`` to the current report - the after state.
         compare_report: ``Path`` to the report to compare against - the before state.
+        compare_format: The output format to print, either `string` or `markdown`
 
     Returns:
         The ``CoverageDiff`` between the two coverage reports.
@@ -886,7 +971,7 @@ def do_compare(report: Path, compare_report: Path) -> CoverageDiff:
     report = read_coverage_report(report)
     compare_report = read_coverage_report(compare_report)
 
-    diff = compare_reports(report, compare_report)
+    diff = compare_reports(report, compare_report, compare_format)
 
     return diff
 
@@ -913,8 +998,8 @@ def compute(
     model_path_exclusion_filter: Optional[List[str]] = typer.Option(
         None, help="The model_path string(s) to filter tables on excluding tables that match."
     ),
-    cov_format: CoverageFormat = typer.Option(
-        CoverageFormat.STRING_TABLE,
+    cov_format: Format = typer.Option(
+        Format.STRING_TABLE,
         help="The output format to print, either `string` or `markdown`",
     ),
 ):
@@ -939,10 +1024,14 @@ def compare(
     compare_report: Path = typer.Argument(
         ..., help="Path to another coverage report to compare with - the before state."
     ),
+    compare_format: Format = typer.Option(
+        Format.STRING_TABLE,
+        help="The output format to print, either `string` or `markdown`",
+    ),
 ):
     """Compare two coverage reports generated by the compute command."""
 
-    return do_compare(report, compare_report)
+    return do_compare(report, compare_report, compare_format)
 
 
 @app.callback()
