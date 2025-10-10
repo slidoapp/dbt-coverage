@@ -323,7 +323,7 @@ class CoverageReport:
     subentities: Dict[str, CoverageReport]
 
     def __post_init__(self):
-        if self.covered is not None and self.total is not None and self.total != 0:
+        if self.covered is not None and self.total is not None and len(self.total) != 0:
             self.misses = self.total - self.covered
             self.coverage = len(self.covered) / len(self.total)
         else:
