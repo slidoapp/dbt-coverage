@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Support for `dbt==1.9`. [#85]
 - Integration tests for `compare`. [#84]
+- Unit tests. [#79]
 
 ### Changed
 - Refactor tests. [#86]

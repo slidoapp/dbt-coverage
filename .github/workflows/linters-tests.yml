@@ -22,6 +22,26 @@ jobs:
       - name: Run pre-commit
         run: pre-commit run --all-files
 
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+          poetry install --no-root
+
+      - name: Run unit tests
+        run: tox -e unit
+
   integration-tests:
     runs-on: ubuntu-latest
     steps:
@@ -57,5 +77,5 @@ jobs:
           poetry config virtualenvs.create false
           poetry install --no-root
 
-      - name: Tox
-        run: tox
+      - name: Run integration tests
+        run: tox -e integration-dbt10,integration-dbt11,integration-dbt12,integration-dbt13,integration-dbt14,integration-dbt15,integration-dbt16,integration-dbt17,integration-dbt18,integration-dbt19
