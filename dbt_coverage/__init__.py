@@ -292,8 +292,9 @@ class CoverageReport:
     subentities.
 
     Attributes:
-        report_type: ``Type`` of the entity that the report represents, either CATALOG, TABLE or
+        entity_type: ``Type`` of the entity that the report represents, either CATALOG, TABLE or
             COLUMN.
+        cov_type: Type of coverage being measured, either DOC or TEST.
         entity_name: In case of TABLE and COLUMN reports, the name of the respective entity.
         covered: Collection of names of columns in the entity that are documented.
         total: Collection of names of all columns in the entity.
@@ -310,7 +311,7 @@ class CoverageReport:
 
     @dataclass(frozen=True)
     class ColumnRef:
-        table_name: str
+        table_name: str | None
         column_name: str
 
     entity_type: EntityType
@@ -522,7 +523,7 @@ class CoverageDiff:
             f"{self.after.cov_type}"
         )
         assert self.before is None or self.before.entity_type == self.after.entity_type, (
-            f"Cannot compare reports with different report_types: {self.before.report_type} and "
+            f"Cannot compare reports with different report_types: {self.before.entity_type} and "
             f"{self.after.entity_type}"
         )
 
