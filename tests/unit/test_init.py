@@ -12,6 +12,7 @@ def test_coverage_report_with_zero_tables(cov_type):
     coverage_report = CoverageReport.from_catalog(empty_catalog, cov_type)
 
     assert len(coverage_report.covered) == 0
+    assert coverage_report.hits == 0
     assert len(coverage_report.total) == 0
     assert coverage_report.coverage is None
     assert coverage_report.misses is None
