@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.3.10] - 2025-10-12
 ### Added
 - Support for `dbt==1.9`. [#85]
 - Integration tests for `compare`. [#84]
