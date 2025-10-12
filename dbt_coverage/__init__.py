@@ -41,7 +41,7 @@ class Column:
 
     name: str
     doc: bool = None
-    test: bool = None
+    tests: int = None
 
     @staticmethod
     def from_node(node) -> Column:
@@ -52,8 +52,8 @@ class Column:
         return doc is not None and doc != ""
 
     @staticmethod
-    def is_valid_test(tests):
-        return tests is not None and tests
+    def num_tests(tests):
+        return len(tests) if tests else 0
 
 
 @dataclass
@@ -292,9 +292,12 @@ class CoverageReport:
     subentities.
 
     Attributes:
-        report_type: ``Type`` of the entity that the report represents, either CATALOG, TABLE or
+        entity_type: ``Type`` of the entity that the report represents, either CATALOG, TABLE or
             COLUMN.
+        cov_type: Type of coverage being measured, either DOC or TEST.
         entity_name: In case of TABLE and COLUMN reports, the name of the respective entity.
+        hits: Total number of hits. For COLUMN, this is the test count (or 1 for docs). For TABLE
+            and CATALOG, this is the sum of hits from all subentities.
         covered: Collection of names of columns in the entity that are documented.
         total: Collection of names of all columns in the entity.
         misses: Collection of names of all columns in the entity that are not documented.
@@ -310,12 +313,13 @@ class CoverageReport:
 
     @dataclass(frozen=True)
     class ColumnRef:
-        table_name: str
+        table_name: str | None
         column_name: str
 
     entity_type: EntityType
     cov_type: CoverageType
     entity_name: Optional[str]
+    hits: int
     covered: Set[ColumnRef]
     total: Set[ColumnRef]
     misses: Set[ColumnRef] = field(init=False)
@@ -337,15 +341,19 @@ class CoverageReport:
             for table in catalog.tables.values()
         }
         covered = set(col for table_report in subentities.values() for col in table_report.covered)
+        hits = sum(table_report.hits for table_report in subentities.values())
         total = set(col for table_report in subentities.values() for col in table_report.total)
 
-        return CoverageReport(cls.EntityType.CATALOG, cov_type, None, covered, total, subentities)
+        return CoverageReport(
+            cls.EntityType.CATALOG, cov_type, None, hits, covered, total, subentities
+        )
 
     @classmethod
     def from_table(cls, table: Table, cov_type: CoverageType):
         subentities = {
             col.name: CoverageReport.from_column(col, cov_type) for col in table.columns.values()
         }
+        hits = sum(col_report.hits for col_report in subentities.values())
         covered = set(
             replace(col, table_name=table.name)
             for col_report in subentities.values()
@@ -358,29 +366,32 @@ class CoverageReport:
         )
 
         return CoverageReport(
-            cls.EntityType.TABLE, cov_type, table.name, covered, total, subentities
+            cls.EntityType.TABLE, cov_type, table.name, hits, covered, total, subentities
         )
 
     @classmethod
     def from_column(cls, column: Column, cov_type: CoverageType):
         if cov_type == CoverageType.DOC:
-            covered = column.doc
+            hits = 1 if column.doc else 0
         elif cov_type == CoverageType.TEST:
-            covered = column.test
+            hits = column.tests
         else:
             raise ValueError(f"Unsupported cov_type {cov_type}")
 
-        covered = {CoverageReport.ColumnRef(None, column.name)} if covered else set()
-        total = {CoverageReport.ColumnRef(None, column.name)}
+        col_ref = CoverageReport.ColumnRef(None, column.name)
+        covered = {col_ref} if hits > 0 else set()
+        total = {col_ref}
 
-        return CoverageReport(cls.EntityType.COLUMN, cov_type, column.name, covered, total, {})
+        return CoverageReport(
+            cls.EntityType.COLUMN, cov_type, column.name, hits, covered, total, {}
+        )
 
     def to_markdown_table(self):
         if self.entity_type == CoverageReport.EntityType.TABLE:
-            return (
-                f"| {self.entity_name:70} | {len(self.covered):5}/{len(self.total):<5} | "
-                f"{self.coverage * 100:5.1f}% |"
-            )
+            coverage_str = f"{len(self.covered):5}/{len(self.total):<5}"
+            if self.cov_type == CoverageType.TEST:
+                coverage_str = f"({self.hits} tests) {coverage_str}"
+            return f"| {self.entity_name:70} | {coverage_str} | {self.coverage * 100:5.1f}% |"
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
@@ -389,10 +400,11 @@ class CoverageReport:
             buf.write("|:------|----------------:|:-:|\n")
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_markdown_table() + "\n")
-            buf.write(
-                f"| {'Total':70} | {len(self.covered):5}/{len(self.total):<5} | "
-                f"{self.coverage * 100:5.1f}% |\n"
-            )
+
+            total_coverage = f"{len(self.covered):5}/{len(self.total):<5}"
+            if self.cov_type == CoverageType.TEST:
+                total_coverage = f"({self.hits} tests) {total_coverage}"
+            buf.write(f"| {'Total':70} | {total_coverage} | {self.coverage * 100:5.1f}% |\n")
 
             return buf.getvalue()
         else:
@@ -403,22 +415,24 @@ class CoverageReport:
 
     def to_formatted_string(self):
         if self.entity_type == CoverageReport.EntityType.TABLE:
-            return (
-                f"{self.entity_name:50} {len(self.covered):5}/{len(self.total):<5} "
-                f"{self.coverage * 100:5.1f}%"
-            )
+            coverage_str = f"{len(self.covered):5}/{len(self.total):<5}"
+            if self.cov_type == CoverageType.TEST:
+                coverage_str = f"{f'({self.hits} tests)':>12} {coverage_str}"
+            return f"{self.entity_name:50} {coverage_str} {self.coverage * 100:5.1f}%"
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
             buf.write(f"Coverage report ({self.cov_type.value})\n")
-            buf.write("=" * 69 + "\n")
+            separator_width = 82 if self.cov_type == CoverageType.TEST else 69
+            buf.write("=" * separator_width + "\n")
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_formatted_string() + "\n")
-            buf.write("=" * 69 + "\n")
-            buf.write(
-                f"{'Total':50} {len(self.covered):5}/{len(self.total):<5} "
-                f"{self.coverage * 100:5.1f}%\n"
-            )
+            buf.write("=" * separator_width + "\n")
+
+            total_coverage = f"{len(self.covered):5}/{len(self.total):<5}"
+            if self.cov_type == CoverageType.TEST:
+                total_coverage = f"{f'({self.hits} tests)':>12} {total_coverage}"
+            buf.write(f"{'Total':50} {total_coverage} {self.coverage * 100:5.1f}%\n")
 
             return buf.getvalue()
         else:
@@ -431,6 +445,7 @@ class CoverageReport:
         if self.entity_type == CoverageReport.EntityType.COLUMN:
             return {
                 "name": self.entity_name,
+                "hits": self.hits,
                 "covered": len(self.covered),
                 "total": len(self.total),
                 "coverage": self.coverage,
@@ -438,6 +453,7 @@ class CoverageReport:
         elif self.entity_type == CoverageReport.EntityType.TABLE:
             return {
                 "name": self.entity_name,
+                "hits": self.hits,
                 "covered": len(self.covered),
                 "total": len(self.total),
                 "coverage": self.coverage,
@@ -446,6 +462,7 @@ class CoverageReport:
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             return {
                 "cov_type": self.cov_type.value,
+                "hits": self.hits,
                 "covered": len(self.covered),
                 "total": len(self.total),
                 "coverage": self.coverage,
@@ -467,6 +484,7 @@ class CoverageReport:
                 CoverageReport.EntityType.CATALOG,
                 cov_type,
                 None,
+                sum(tbl.hits for tbl in subentities.values()),
                 set(col for tbl in subentities.values() for col in tbl.covered),
                 set(col for tbl in subentities.values() for col in tbl.total),
                 subentities,
@@ -481,6 +499,7 @@ class CoverageReport:
                 CoverageReport.EntityType.TABLE,
                 cov_type,
                 table_name,
+                sum(col_report.hits for col_report in subentities.values()),
                 set(
                     replace(col, table_name=table_name)
                     for col_report in subentities.values()
@@ -495,12 +514,16 @@ class CoverageReport:
             )
         else:
             column_name = report["name"]
+            col_ref = CoverageReport.ColumnRef(None, column_name)
+            # Backward compatibility: if "hits" is not present, use "covered" (0 or 1)
+            hits = report.get("hits", report["covered"])
             return CoverageReport(
                 CoverageReport.EntityType.COLUMN,
                 cov_type,
                 column_name,
-                {CoverageReport.ColumnRef(None, column_name)} if report["covered"] > 0 else set(),
-                {CoverageReport.ColumnRef(None, column_name)},
+                hits,
+                {col_ref} if report["covered"] > 0 else set(),
+                {col_ref},
                 {},
             )
 
@@ -522,7 +545,7 @@ class CoverageDiff:
             f"{self.after.cov_type}"
         )
         assert self.before is None or self.before.entity_type == self.after.entity_type, (
-            f"Cannot compare reports with different report_types: {self.before.report_type} and "
+            f"Cannot compare reports with different report_types: {self.before.entity_type} and "
             f"{self.after.entity_type}"
         )
 
@@ -770,7 +793,7 @@ def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
             )
             doc = manifest_column.get("description")
             catalog_column.doc = Column.is_valid_doc(doc)
-            catalog_column.test = Column.is_valid_test(manifest_column_tests)
+            catalog_column.tests = Column.num_tests(manifest_column_tests)
 
     return catalog
 

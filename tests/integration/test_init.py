@@ -115,6 +115,7 @@ def test_compute_doc(session_setup_dbt):
     report = do_compute(DBT_PROJECT_DIR, cov_type=CoverageType.DOC)
 
     assert len(report.covered) == 15
+    assert report.hits == 15
     assert len(report.total) == 38
 
 
@@ -122,6 +123,7 @@ def test_compute_test(session_setup_dbt):
     report = do_compute(DBT_PROJECT_DIR, cov_type=CoverageType.TEST)
 
     assert len(report.covered) == 14
+    assert report.hits == 20
     assert len(report.total) == 38
 
 
@@ -135,6 +137,7 @@ def test_compute_path_filter(session_setup_dbt):
     assert len(report.subentities) == 3
     assert all("stg" in table for table in report.subentities)
     assert len(report.covered) == 0
+    assert report.hits == 0
     assert len(report.total) == 11
 
 
@@ -148,6 +151,7 @@ def test_compute_path_exclusion_filter(session_setup_dbt):
     assert len(report.subentities) == 5
     assert not any("stg" in table for table in report.subentities)
     assert len(report.covered) == 15
+    assert report.hits == 15
     assert len(report.total) == 27
 
 
@@ -163,6 +167,7 @@ def test_compute_both_path_filters(session_setup_dbt):
     assert all("stg" in table for table in report.subentities)
     assert "jaffle_shop.stg_customers" not in report.subentities
     assert len(report.covered) == 0
+    assert report.hits == 0
     assert len(report.total) == 8
 
 
