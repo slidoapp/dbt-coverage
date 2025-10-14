@@ -323,16 +323,12 @@ class CoverageReport:
     covered: Set[ColumnRef]
     total: Set[ColumnRef]
     misses: Set[ColumnRef] = field(init=False)
-    coverage: float = field(init=False)
+    coverage: Optional[float] = field(init=False)
     subentities: Dict[str, CoverageReport]
 
     def __post_init__(self):
-        if self.covered is not None and self.total is not None and len(self.total) != 0:
-            self.misses = self.total - self.covered
-            self.coverage = len(self.covered) / len(self.total)
-        else:
-            self.misses = None
-            self.coverage = None
+        self.misses = self.total - self.covered
+        self.coverage = len(self.covered) / len(self.total) if self.total else None
 
     @classmethod
     def from_catalog(cls, catalog: Catalog, cov_type: CoverageType):
@@ -584,9 +580,12 @@ class CoverageDiff:
 
         buf.write(f"{'':10}{'before':>10}{'after':>10}{'+/-':>15}\n")
         buf.write("=" * 45 + "\n")
+
+        before_cov = self.before.coverage if self.before.coverage is not None else 0.0
+        after_cov = self.after.coverage if self.after.coverage is not None else 0.0
         buf.write(
-            f"{'Coverage':10}{self.before.coverage:10.2%}{self.after.coverage:10.2%}"
-            f"{(self.after.coverage - self.before.coverage):+15.2%}\n"
+            f"{'Coverage':10}{before_cov:10.2%}{after_cov:10.2%}"
+            f"{(after_cov - before_cov):+15.2%}\n"
         )
         buf.write("=" * 45 + "\n")
 
@@ -684,10 +683,16 @@ class CoverageDiff:
 
         before_covered = len(self.before.covered) if self.before is not None else "-"
         before_total = len(self.before.total) if self.before is not None else "-"
-        before_coverage = f"({self.before.coverage:.2%})" if self.before is not None else "(-)"
+        before_coverage = (
+            f"({self.before.coverage:.2%})"
+            if self.before is not None and self.before.coverage is not None
+            else "(-)"
+        )
         after_covered = len(self.after.covered)
         after_total = len(self.after.total)
-        after_coverage = f"({self.after.coverage:.2%})"
+        after_coverage = (
+            f"({self.after.coverage:.2%})" if self.after.coverage is not None else "(-)"
+        )
 
         buf = io.StringIO()
         buf.write(f"{title:50}")
