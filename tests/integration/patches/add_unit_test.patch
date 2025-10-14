@@ -1,0 +1,42 @@
+Index: models/schema.yml
+===================================================================
+diff --git a/models/schema.yml b/models/schema.yml
+--- a/models/schema.yml	(revision b0b77aac70f490770a1e77c02bb0a2b8771d3203)
++++ b/models/schema.yml	(date 1760388755804)
+@@ -1,5 +1,36 @@
+ version: 2
+
++unit_tests:
++  - name: test_customers_basic
++    model: customers
++    given:
++      - input: ref('stg_customers')
++        rows:
++          - {customer_id: 1, first_name: John, last_name: Doe}
++      - input: ref('stg_orders')
++        rows: []
++      - input: ref('stg_payments')
++        rows: []
++    expect:
++      rows:
++        - {customer_id: 1, first_name: John, last_name: Doe, first_order: null, most_recent_order: null, number_of_orders: 0, customer_lifetime_value: null}
++
++  - name: test_customers_with_orders
++    model: customers
++    given:
++      - input: ref('stg_customers')
++        rows:
++          - {customer_id: 2, first_name: Jane, last_name: Smith}
++      - input: ref('stg_orders')
++        rows:
++          - {order_id: 1, customer_id: 2, order_date: '2024-01-01'}
++      - input: ref('stg_payments')
++        rows: []
++    expect:
++      rows:
++        - {customer_id: 2, first_name: Jane, last_name: Smith, number_of_orders: 1}
++
++
+ models:
+   - name: customers
+     description: This table has basic information about a customer, as well as some derived facts based on a customer's orders

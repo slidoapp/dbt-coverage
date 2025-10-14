@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - Hits count for test coverage. [#91]
+- Support for unit tests. [#93] _Thanks to @TStanovcak!_
 
 ### Fixed
 - Few edge cases with zero entities. [#92]
