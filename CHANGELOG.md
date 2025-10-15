@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Hits count for test coverage. [#91]
 
+### Fixed
+- Few edge cases with zero entities. [#92]
+
 ## [0.3.10] - 2025-10-12
 ### Added
 - Support for `dbt==1.9`. [#85]
