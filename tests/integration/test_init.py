@@ -3,11 +3,19 @@ import subprocess
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+import dbt.version
 import psycopg2
 import pytest
+from packaging.version import parse as parse_version
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 from dbt_coverage import CoverageType, do_compare, do_compute
+
+# Skip unit test tests for dbt < 1.8 (unit tests were added in dbt 1.8)
+skip_if_dbt_pre_18 = pytest.mark.skipif(
+    parse_version(dbt.version.__version__) < parse_version("1.8.0"),
+    reason="Unit tests require dbt >= 1.8",
+)
 
 DBT_PROJECT_DIR = Path("tests/integration/jaffle_shop")
 PATCHES_DIR = Path("tests/integration/patches")
@@ -127,6 +135,18 @@ def test_compute_test(session_setup_dbt):
     assert len(report.total) == 38
 
 
+@skip_if_dbt_pre_18
+def test_compute_unit_test(setup_dbt):
+    """Test computing unit test coverage."""
+    with apply_patch(PATCHES_DIR / "add_unit_test.patch"):
+        run_dbt()
+        report = do_compute(DBT_PROJECT_DIR, cov_type=CoverageType.UNIT_TEST)
+
+    assert len(report.covered) == 1
+    assert report.hits == 2
+    assert len(report.total) == 8
+
+
 def test_compute_path_filter(session_setup_dbt):
     report = do_compute(
         DBT_PROJECT_DIR,
@@ -190,6 +210,7 @@ def test_compare_new_column(setup_dbt):
 
         diff = do_compare(Path(f2.name), Path(f1.name))
 
+    assert diff.after.coverage < diff.before.coverage
     newly_missed_tables = diff.new_misses
     assert set(newly_missed_tables) == {"jaffle_shop.customers"}
     newly_missed_table = list(newly_missed_tables.values())[0]
@@ -206,8 +227,26 @@ def test_compare_new_table(setup_dbt):
 
         diff = do_compare(Path(f2.name), Path(f1.name))
 
+    assert diff.after.coverage < diff.before.coverage
     newly_missed_tables = diff.new_misses
     assert set(newly_missed_tables) == {"jaffle_shop.new_table"}
     newly_missed_table = list(newly_missed_tables.values())[0]
     newly_missed_columns = set(newly_missed_table.new_misses.keys())
     assert newly_missed_columns == {"col_1", "col_2", "col_3"}
+
+
+@skip_if_dbt_pre_18
+def test_compare_unit_test(setup_dbt):
+    """Test comparing unit test coverage - before and after removing unit tests."""
+    with NamedTemporaryFile() as f1, NamedTemporaryFile() as f2:
+        with apply_patch(PATCHES_DIR / "add_unit_test.patch"):
+            run_dbt()
+            do_compute(DBT_PROJECT_DIR, cov_type=CoverageType.UNIT_TEST, cov_report=Path(f1.name))
+        run_dbt()
+        do_compute(DBT_PROJECT_DIR, cov_type=CoverageType.UNIT_TEST, cov_report=Path(f2.name))
+
+        diff = do_compare(Path(f2.name), Path(f1.name))
+
+    assert diff.after.coverage < diff.before.coverage
+    newly_missed_tables = diff.new_misses
+    assert set(newly_missed_tables.keys()) == {"jaffle_shop.customers"}

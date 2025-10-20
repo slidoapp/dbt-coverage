@@ -40,6 +40,7 @@ colorama = { version = "*", python = "^3.7" }  # Needed for a successful resolut
 [tool.poetry.group.test.dependencies]
 pytest = "^7"
 pytest-docker = "^2"
+packaging = "*"  # Required for version comparison in tests
 
 dbt-core = { version = "~1.9.0", python = "^3.9" }
 dbt-postgres = { version = "~1.9.0", python = "^3.9" }

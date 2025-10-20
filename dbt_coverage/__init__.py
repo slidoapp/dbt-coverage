@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Union
 
 import typer
 
@@ -28,6 +28,7 @@ app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
 class CoverageType(Enum):
     DOC = "doc"
     TEST = "test"
+    UNIT_TEST = "unit-test"
 
 
 class CoverageFormat(str, Enum):
@@ -64,6 +65,7 @@ class Table:
     name: str
     original_file_path: str
     columns: Dict[str, Column]
+    unit_tests: List[Dict] = field(default_factory=list)
 
     @staticmethod
     def from_node(node, manifest: Manifest) -> Table:
@@ -159,6 +161,7 @@ class Manifest:
     seeds: Dict[str, Dict[str, Dict[str, Dict]]]
     snapshots: Dict[str, Dict[str, Dict[str, Dict]]]
     tests: Dict[str, Dict[str, List[Dict]]]
+    unit_tests: Dict[str, List[Dict]]
 
     @classmethod
     def from_nodes(cls, manifest_nodes: Dict[str, Dict]) -> Manifest:
@@ -209,8 +212,9 @@ class Manifest:
         }
 
         tests = cls._parse_tests(manifest_nodes)
+        unit_tests = cls._parse_unit_tests(manifest_nodes)
 
-        return Manifest(sources, models, seeds, snapshots, tests)
+        return Manifest(sources, models, seeds, snapshots, tests, unit_tests)
 
     def get_table(self, table_id):
         source_candidate = self.sources.get(table_id)
@@ -270,6 +274,24 @@ class Manifest:
 
         return tests
 
+    @classmethod
+    def _parse_unit_tests(cls, manifest_nodes: Dict[str, Dict]) -> Dict[str, List[Dict]]:
+        """Parses unit tests from manifest.json nodes."""
+
+        unit_tests = {}
+        for node in manifest_nodes.values():
+            if node["resource_type"] != "unit_test":
+                continue
+
+            depends_on = node["depends_on"]["nodes"]
+            if not depends_on:
+                continue
+
+            [table_id] = depends_on  # There should only be one model
+            unit_tests.setdefault(table_id, []).append(node)
+
+        return unit_tests
+
     @staticmethod
     def _full_table_name(table):
         return f"{table['schema']}.{table['name']}".lower()
@@ -316,13 +338,17 @@ class CoverageReport:
         table_name: str | None
         column_name: str
 
+    @dataclass(frozen=True)
+    class TableRef:
+        table_name: str
+
     entity_type: EntityType
     cov_type: CoverageType
     entity_name: Optional[str]
     hits: int
-    covered: Set[ColumnRef]
-    total: Set[ColumnRef]
-    misses: Set[ColumnRef] = field(init=False)
+    covered: Set[Union[ColumnRef, TableRef]]
+    total: Set[Union[ColumnRef, TableRef]]
+    misses: Set[Union[ColumnRef, TableRef]] = field(init=False)
     coverage: Optional[float] = field(init=False)
     subentities: Dict[str, CoverageReport]
 
@@ -346,6 +372,15 @@ class CoverageReport:
 
     @classmethod
     def from_table(cls, table: Table, cov_type: CoverageType):
+        if cov_type == CoverageType.UNIT_TEST:  # Unit tests work on the table level
+            hits = len(table.unit_tests)
+            table_ref = CoverageReport.TableRef(table.name)
+            covered = {table_ref} if hits > 0 else set()
+            total = {table_ref}
+            return CoverageReport(
+                cls.EntityType.TABLE, cov_type, table.name, hits, covered, total, {}
+            )
+
         subentities = {
             col.name: CoverageReport.from_column(col, cov_type) for col in table.columns.values()
         }
@@ -371,6 +406,8 @@ class CoverageReport:
             hits = 1 if column.doc else 0
         elif cov_type == CoverageType.TEST:
             hits = column.tests
+        elif cov_type == CoverageType.UNIT_TEST:
+            raise ValueError("Unit test coverage is not supported at column level")
         else:
             raise ValueError(f"Unsupported cov_type {cov_type}")
 
@@ -385,7 +422,7 @@ class CoverageReport:
     def to_markdown_table(self):
         if self.entity_type == CoverageReport.EntityType.TABLE:
             coverage_str = f"{len(self.covered):5}/{len(self.total):<5}"
-            if self.cov_type == CoverageType.TEST:
+            if self.cov_type in (CoverageType.TEST, CoverageType.UNIT_TEST):
                 coverage_str = f"({self.hits} tests) {coverage_str}"
             return f"| {self.entity_name:70} | {coverage_str} | {self.coverage * 100:5.1f}% |"
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
@@ -398,7 +435,7 @@ class CoverageReport:
                 buf.write(table_cov.to_markdown_table() + "\n")
 
             total_coverage = f"{len(self.covered):5}/{len(self.total):<5}"
-            if self.cov_type == CoverageType.TEST:
+            if self.cov_type in (CoverageType.TEST, CoverageType.UNIT_TEST):
                 total_coverage = f"({self.hits} tests) {total_coverage}"
             buf.write(f"| {'Total':70} | {total_coverage} | {self.coverage * 100:5.1f}% |\n")
 
@@ -412,21 +449,23 @@ class CoverageReport:
     def to_formatted_string(self):
         if self.entity_type == CoverageReport.EntityType.TABLE:
             coverage_str = f"{len(self.covered):5}/{len(self.total):<5}"
-            if self.cov_type == CoverageType.TEST:
+            if self.cov_type in (CoverageType.TEST, CoverageType.UNIT_TEST):
                 coverage_str = f"{f'({self.hits} tests)':>12} {coverage_str}"
             return f"{self.entity_name:50} {coverage_str} {self.coverage * 100:5.1f}%"
         elif self.entity_type == CoverageReport.EntityType.CATALOG:
             buf = io.StringIO()
 
             buf.write(f"Coverage report ({self.cov_type.value})\n")
-            separator_width = 82 if self.cov_type == CoverageType.TEST else 69
+            separator_width = (
+                82 if self.cov_type in (CoverageType.TEST, CoverageType.UNIT_TEST) else 69
+            )
             buf.write("=" * separator_width + "\n")
             for _, table_cov in sorted(self.subentities.items()):
                 buf.write(table_cov.to_formatted_string() + "\n")
             buf.write("=" * separator_width + "\n")
 
             total_coverage = f"{len(self.covered):5}/{len(self.total):<5}"
-            if self.cov_type == CoverageType.TEST:
+            if self.cov_type in (CoverageType.TEST, CoverageType.UNIT_TEST):
                 total_coverage = f"{f'({self.hits} tests)':>12} {total_coverage}"
             buf.write(f"{'Total':50} {total_coverage} {self.coverage * 100:5.1f}%\n")
 
@@ -487,6 +526,23 @@ class CoverageReport:
             )
         elif "columns" in report:
             table_name = report["name"]
+
+            # Unit tests work on the table level
+            if cov_type == CoverageType.UNIT_TEST:
+                hits = report["hits"]
+                table_ref = CoverageReport.TableRef(table_name)
+                covered = {table_ref} if hits > 0 else set()
+                total = {table_ref}
+                return CoverageReport(
+                    CoverageReport.EntityType.TABLE,
+                    cov_type,
+                    table_name,
+                    hits,
+                    covered,
+                    total,
+                    {},
+                )
+
             subentities = {
                 col_report["name"]: CoverageReport.from_dict(col_report, cov_type)
                 for col_report in report["columns"]
@@ -549,6 +605,12 @@ class CoverageDiff:
 
     def find_new_misses(self):
         if self.after.entity_type == CoverageReport.EntityType.COLUMN:
+            return None
+
+        if (
+            self.after.entity_type == CoverageReport.EntityType.TABLE
+            and self.after.cov_type == CoverageType.UNIT_TEST
+        ):  # Unit tests work on the table level
             return None
 
         new_misses = self.after.misses - (self.before.misses if self.before is not None else set())
@@ -639,8 +701,9 @@ class CoverageDiff:
             buf = io.StringIO()
 
             buf.write(self._new_miss_summary_row())
-            for col in self.new_misses.values():
-                buf.write(col.new_misses_summary())
+            if self.after.cov_type != CoverageType.UNIT_TEST:  # Unit tests work on the table level
+                for col in self.new_misses.values():
+                    buf.write(col.new_misses_summary())
 
             return buf.getvalue()
 
@@ -759,7 +822,11 @@ def load_manifest(project_dir: Path, run_artifacts_dir: Path) -> Manifest:
 
     check_manifest_version(manifest_json)
 
-    manifest_nodes = {**manifest_json["sources"], **manifest_json["nodes"]}
+    manifest_nodes = {
+        **manifest_json["sources"],
+        **manifest_json["nodes"],
+        **manifest_json.get("unit_tests", {}),  # Only available from dbt 1.8
+    }
     manifest = Manifest.from_nodes(manifest_nodes)
 
     return manifest
@@ -782,6 +849,7 @@ def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
         manifest_snapshot_table = manifest.snapshots.get(table_id, {"columns": {}})
         manifest_table_tests = manifest.tests.get(table_id, {})
 
+        catalog_table.unit_tests = manifest.unit_tests.get(table_id, [])
         for catalog_column in catalog_table.columns.values():
             manifest_source_column = manifest_source_table["columns"].get(catalog_column.name)
             manifest_model_column = manifest_model_table["columns"].get(catalog_column.name)
