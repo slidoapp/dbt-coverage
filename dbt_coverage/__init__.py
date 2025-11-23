@@ -26,6 +26,11 @@ SUPPORTED_MANIFEST_SCHEMA_VERSIONS = [
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
 
 
+class TableType(Enum):
+    SOURCE = "source"
+    MODEL = "model"
+
+
 class CoverageType(Enum):
     DOC = "doc"
     TEST = "test"
@@ -66,6 +71,7 @@ class Table:
     name: str
     original_file_path: str
     columns: Dict[str, Column]
+    table_type: TableType
     unit_tests: List[Dict] = field(default_factory=list)
 
     @staticmethod
@@ -87,6 +93,7 @@ class Table:
             manifest_table["name"].lower(),
             original_file_path,
             {col.name: col for col in columns},
+            TableType.MODEL if unique_id.startswith("model.") else TableType.SOURCE,
         )
 
     def get_column(self, column_name):
@@ -359,9 +366,16 @@ class CoverageReport:
 
     @classmethod
     def from_catalog(cls, catalog: Catalog, cov_type: CoverageType):
+        tables_to_be_included = catalog.tables
+        if cov_type == CoverageType.UNIT_TEST:
+            tables_to_be_included = {
+                _: table
+                for _, table in catalog.tables.items()
+                if table.table_type != TableType.SOURCE
+            }
         subentities = {
             table.name: CoverageReport.from_table(table, cov_type)
-            for table in catalog.tables.values()
+            for table in tables_to_be_included.values()
         }
         covered = set(col for table_report in subentities.values() for col in table_report.covered)
         hits = sum(table_report.hits for table_report in subentities.values())
