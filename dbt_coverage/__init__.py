@@ -98,13 +98,15 @@ class Catalog:
     """Dataclass containing the information about a database catalog, its tables and columns."""
 
     sources: Dict[str, Table]
-    tables: Dict[str, Table]
+    models: Dict[str, Table]
+    seeds: Dict[str, Table]
+    snapshots: Dict[str, Table]
 
     def filter_tables(
         self, model_path_filter: List[str] | None, model_path_exclusion_filter: List[str] | None
     ) -> Catalog:
         """
-        Filters ``Catalog``'s ``sources`` and ``tables`` based on their paths.
+        Filters ``Catalog``'s tables based on their paths.
 
         Two filters are applied (if their respective arguments are provided):
 
@@ -141,31 +143,55 @@ class Catalog:
                 }
             return result
 
-        sources = apply_filters(self.sources)
-        tables = apply_filters(self.tables)
-
-        logging.info(
-            "Successfully filtered tables. Total post-filtering: %d sources, %d tables",
-            len(sources),
-            len(tables),
+        filtered = Catalog(
+            sources=apply_filters(self.sources),
+            models=apply_filters(self.models),
+            seeds=apply_filters(self.seeds),
+            snapshots=apply_filters(self.snapshots),
         )
 
-        return Catalog(sources=sources, tables=tables)
+        logging.info(
+            "Successfully filtered tables. Total post-filtering: "
+            "%d sources, %d models, %d seeds, %d snapshots",
+            len(filtered.sources),
+            len(filtered.models),
+            len(filtered.seeds),
+            len(filtered.snapshots),
+        )
+
+        return filtered
 
     @staticmethod
-    def from_nodes(source_nodes, table_nodes, manifest: Manifest):
-        sources = [Table.from_node(table, manifest) for table in source_nodes]
-        tables = [Table.from_node(table, manifest) for table in table_nodes]
+    def from_nodes(catalog_nodes, manifest: Manifest) -> Catalog:
+        buckets: Dict[str, Dict[str, Table]] = {
+            "source": {},
+            "model": {},
+            "seed": {},
+            "snapshot": {},
+        }
+        for node in catalog_nodes:
+            unique_id = node["unique_id"]
+            resource_type = unique_id.split(".", 1)[0]
+            if resource_type not in buckets:
+                raise ValueError(f"Unsupported resource type for unique_id: {unique_id}")
+            table = Table.from_node(node, manifest)
+            buckets[resource_type][table.unique_id] = table
+
         return Catalog(
-            {table.unique_id: table for table in sources},
-            {table.unique_id: table for table in tables},
+            sources=buckets["source"],
+            models=buckets["model"],
+            seeds=buckets["seed"],
+            snapshots=buckets["snapshot"],
         )
 
     def get_table(self, table_id):
-        return self.tables.get(table_id) or self.sources.get(table_id)
+        for bucket in (self.models, self.sources, self.seeds, self.snapshots):
+            if table_id in bucket:
+                return bucket[table_id]
+        return None
 
     def all_tables(self) -> Dict[str, Table]:
-        return {**self.sources, **self.tables}
+        return {**self.sources, **self.models, **self.seeds, **self.snapshots}
 
 
 @dataclass
@@ -373,7 +399,7 @@ class CoverageReport:
     @classmethod
     def from_catalog(cls, catalog: Catalog, cov_type: CoverageType):
         tables_to_be_included = (
-            catalog.tables if cov_type == CoverageType.UNIT_TEST else catalog.all_tables()
+            catalog.models if cov_type == CoverageType.UNIT_TEST else catalog.all_tables()
         )
         subentities = {
             table.name: CoverageReport.from_table(table, cov_type)
@@ -870,17 +896,17 @@ def load_catalog(project_dir: Path, run_artifacts_dir: Path, manifest: Manifest)
     with open(catalog_path) as f:
         catalog_json = json.load(f)
 
-    source_nodes = catalog_json["sources"]
+    catalog_nodes = {**catalog_json["sources"], **catalog_json["nodes"]}
     # Filter out tables storing test failures: https://github.com/slidoapp/dbt-coverage/issues/62
-    table_nodes = {
-        n_id: n for n_id, n in catalog_json["nodes"].items() if not n_id.startswith("test.")
-    }
-    catalog = Catalog.from_nodes(source_nodes.values(), table_nodes.values(), manifest)
+    catalog_nodes = {n_id: n for n_id, n in catalog_nodes.items() if not n_id.startswith("test.")}
+    catalog = Catalog.from_nodes(catalog_nodes.values(), manifest)
 
     logging.info(
-        "Successfully loaded %d sources and %d tables from catalog",
+        "Successfully loaded %d sources, %d models, %d seeds, %d snapshots from catalog",
         len(catalog.sources),
-        len(catalog.tables),
+        len(catalog.models),
+        len(catalog.seeds),
+        len(catalog.snapshots),
     )
 
     return catalog
@@ -953,11 +979,7 @@ def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
 
 
 def compute_coverage(catalog: Catalog, cov_type: CoverageType):
-    logging.info(
-        "Computing coverage for %d sources and %d tables",
-        len(catalog.sources),
-        len(catalog.tables),
-    )
+    logging.info("Computing coverage for %d tables", len(catalog.all_tables()))
     coverage_report = CoverageReport.from_catalog(catalog, cov_type)
     logging.info("Coverage computed successfully")
     return coverage_report
@@ -1028,7 +1050,7 @@ def do_compute(
     catalog = load_files(project_dir, run_artifacts_dir)
     if model_path_filter or model_path_exclusion_filter:
         catalog = catalog.filter_tables(model_path_filter, model_path_exclusion_filter)
-        if not catalog.sources and not catalog.tables:
+        if not catalog.all_tables():
             raise ValueError(
                 "After filtering, the Catalog contains no tables. Ensure your model_path_filter "
                 "is correct."
