@@ -26,11 +26,6 @@ SUPPORTED_MANIFEST_SCHEMA_VERSIONS = [
 app = typer.Typer(help="Compute coverage of dbt-managed data warehouses.")
 
 
-class TableType(Enum):
-    SOURCE = "source"
-    MODEL = "model"
-
-
 class CoverageType(Enum):
     DOC = "doc"
     TEST = "test"
@@ -71,7 +66,6 @@ class Table:
     name: str
     original_file_path: str
     columns: Dict[str, Column]
-    table_type: TableType
     unit_tests: List[Dict] = field(default_factory=list)
 
     @staticmethod
@@ -93,7 +87,6 @@ class Table:
             manifest_table["name"].lower(),
             original_file_path,
             {col.name: col for col in columns},
-            TableType.MODEL if unique_id.startswith("model.") else TableType.SOURCE,
         )
 
     def get_column(self, column_name):
@@ -104,13 +97,14 @@ class Table:
 class Catalog:
     """Dataclass containing the information about a database catalog, its tables and columns."""
 
+    sources: Dict[str, Table]
     tables: Dict[str, Table]
 
     def filter_tables(
         self, model_path_filter: List[str] | None, model_path_exclusion_filter: List[str] | None
     ) -> Catalog:
         """
-        Filters ``Catalog``'s ``tables`` based on their paths.
+        Filters ``Catalog``'s ``sources`` and ``tables`` based on their paths.
 
         Two filters are applied (if their respective arguments are provided):
 
@@ -129,37 +123,49 @@ class Catalog:
             New ``Catalog`` instance containing only ``Table``s that passed the filter.
         """
 
-        tables = self.tables.copy()
+        def apply_filters(tables: Dict[str, Table]) -> Dict[str, Table]:
+            result = tables.copy()
+            if model_path_filter is not None:
+                prefixes = tuple(model_path_filter)
+                result = {
+                    t_id: t
+                    for t_id, t in result.items()
+                    if t.original_file_path.startswith(prefixes)
+                }
+            if model_path_exclusion_filter is not None:
+                prefixes = tuple(model_path_exclusion_filter)
+                result = {
+                    t_id: t
+                    for t_id, t in result.items()
+                    if not t.original_file_path.startswith(prefixes)
+                }
+            return result
 
-        if model_path_filter is not None:
-            model_path_filter = tuple(model_path_filter)
-            tables = {
-                t_id: t
-                for t_id, t in tables.items()
-                if t.original_file_path.startswith(model_path_filter)
-            }
-
-        if model_path_exclusion_filter is not None:
-            model_path_exclusion_filter = tuple(model_path_exclusion_filter)
-            tables = {
-                t_id: t
-                for t_id, t in tables.items()
-                if not t.original_file_path.startswith(model_path_exclusion_filter)
-            }
+        sources = apply_filters(self.sources)
+        tables = apply_filters(self.tables)
 
         logging.info(
-            "Successfully filtered tables. Total tables post-filtering: %d tables", len(tables)
+            "Successfully filtered tables. Total post-filtering: %d sources, %d tables",
+            len(sources),
+            len(tables),
         )
 
-        return Catalog(tables=tables)
+        return Catalog(sources=sources, tables=tables)
 
     @staticmethod
-    def from_nodes(nodes, manifest: Manifest):
-        tables = [Table.from_node(table, manifest) for table in nodes]
-        return Catalog({table.unique_id: table for table in tables})
+    def from_nodes(source_nodes, table_nodes, manifest: Manifest):
+        sources = [Table.from_node(table, manifest) for table in source_nodes]
+        tables = [Table.from_node(table, manifest) for table in table_nodes]
+        return Catalog(
+            {table.unique_id: table for table in sources},
+            {table.unique_id: table for table in tables},
+        )
 
     def get_table(self, table_id):
-        return self.tables.get(table_id)
+        return self.tables.get(table_id) or self.sources.get(table_id)
+
+    def all_tables(self) -> Dict[str, Table]:
+        return {**self.sources, **self.tables}
 
 
 @dataclass
@@ -366,13 +372,9 @@ class CoverageReport:
 
     @classmethod
     def from_catalog(cls, catalog: Catalog, cov_type: CoverageType):
-        tables_to_be_included = catalog.tables
-        if cov_type == CoverageType.UNIT_TEST:
-            tables_to_be_included = {
-                _: table
-                for _, table in catalog.tables.items()
-                if table.table_type != TableType.SOURCE
-            }
+        tables_to_be_included = (
+            catalog.tables if cov_type == CoverageType.UNIT_TEST else catalog.all_tables()
+        )
         subentities = {
             table.name: CoverageReport.from_table(table, cov_type)
             for table in tables_to_be_included.values()
@@ -868,12 +870,18 @@ def load_catalog(project_dir: Path, run_artifacts_dir: Path, manifest: Manifest)
     with open(catalog_path) as f:
         catalog_json = json.load(f)
 
-    catalog_nodes = {**catalog_json["sources"], **catalog_json["nodes"]}
+    source_nodes = catalog_json["sources"]
     # Filter out tables storing test failures: https://github.com/slidoapp/dbt-coverage/issues/62
-    catalog_nodes = {n_id: n for n_id, n in catalog_nodes.items() if not n_id.startswith("test.")}
-    catalog = Catalog.from_nodes(catalog_nodes.values(), manifest)
+    table_nodes = {
+        n_id: n for n_id, n in catalog_json["nodes"].items() if not n_id.startswith("test.")
+    }
+    catalog = Catalog.from_nodes(source_nodes.values(), table_nodes.values(), manifest)
 
-    logging.info("Successfully loaded %d tables from catalog", len(catalog.tables))
+    logging.info(
+        "Successfully loaded %d sources and %d tables from catalog",
+        len(catalog.sources),
+        len(catalog.tables),
+    )
 
     return catalog
 
@@ -915,8 +923,7 @@ def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
     manifest = load_manifest(project_dir, run_artifacts_dir)
     catalog = load_catalog(project_dir, run_artifacts_dir, manifest)
 
-    for table_id in catalog.tables:
-        catalog_table = catalog.get_table(table_id)
+    for table_id, catalog_table in catalog.all_tables().items():
         manifest_source_table = manifest.sources.get(table_id, {"columns": {}})
         manifest_model_table = manifest.models.get(table_id, {"columns": {}})
         manifest_seed_table = manifest.seeds.get(table_id, {"columns": {}})
@@ -946,7 +953,11 @@ def load_files(project_dir: Path, run_artifacts_dir: Path) -> Catalog:
 
 
 def compute_coverage(catalog: Catalog, cov_type: CoverageType):
-    logging.info("Computing coverage for %d tables", len(catalog.tables))
+    logging.info(
+        "Computing coverage for %d sources and %d tables",
+        len(catalog.sources),
+        len(catalog.tables),
+    )
     coverage_report = CoverageReport.from_catalog(catalog, cov_type)
     logging.info("Coverage computed successfully")
     return coverage_report
@@ -1017,7 +1028,7 @@ def do_compute(
     catalog = load_files(project_dir, run_artifacts_dir)
     if model_path_filter or model_path_exclusion_filter:
         catalog = catalog.filter_tables(model_path_filter, model_path_exclusion_filter)
-        if not catalog.tables:
+        if not catalog.sources and not catalog.tables:
             raise ValueError(
                 "After filtering, the Catalog contains no tables. Ensure your model_path_filter "
                 "is correct."
