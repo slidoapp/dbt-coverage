@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
-- Exclude sources from unit test computation. [#95] _Thanks to @pvij!_
+- Compute unit test coverage only for models. [#95] _Thanks to @pvij!_
 
 ## [0.4.1] - 2025-10-24
 ### Added
