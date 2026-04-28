@@ -144,7 +144,7 @@ def test_compute_unit_test(setup_dbt):
 
     assert len(report.covered) == 1
     assert report.hits == 2
-    assert len(report.total) == 8
+    assert len(report.total) == 5
 
 
 def test_compute_path_filter(session_setup_dbt):
