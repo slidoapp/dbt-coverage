@@ -78,4 +78,4 @@ jobs:
           poetry install --no-root
 
       - name: Run integration tests
-        run: tox -e integration-dbt10,integration-dbt11,integration-dbt12,integration-dbt13,integration-dbt14,integration-dbt15,integration-dbt16,integration-dbt17,integration-dbt18,integration-dbt19
+        run: tox -e integration-dbt10,integration-dbt11,integration-dbt12,integration-dbt13,integration-dbt14,integration-dbt15,integration-dbt16,integration-dbt17,integration-dbt18,integration-dbt19,integration-dbt110,integration-dbt111
