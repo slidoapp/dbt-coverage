@@ -256,14 +256,16 @@ $ dbt-coverage compare after.json before.json  # Generate a detailed coverage de
 
 ## Supported `dbt` versions
 
-Different version of `dbt-coverage` support different versions of `dbt`. Here is
+Different versions of `dbt-coverage` support different versions of `dbt`. Here is
 the support matrix.
 
-| `dbt`       | `dbt-coverage` |
-|-------------|----------------|
-| <0.20       | not tested     |
-| 0.20 - 0.21 | 0.1            |
-| 1.0 - 1.11  | 0.2 - 0.4      |
+| `dbt-coverage` | `dbt`       |
+|----------------|-------------|
+| 0.1            | 0.20 - 0.21 |
+| 0.2 - 0.4      | 1.0 - 1.11  |
+| 0.5            | 1.1 - 1.11  |
+
+`dbt` versions older than 0.20 are not tested.
 
 ## Related packages
 
