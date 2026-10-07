@@ -704,8 +704,7 @@ class CoverageDiff:
         )
 
         if output_format == OutputFormat.MARKDOWN_TABLE:
-            template = textwrap.dedent(
-                """\
+            template = textwrap.dedent("""\
                 |           |       before      |       after      |         +/-       |
                 |:----------|:-----------------:|:----------------:|:-----------------:|
                 | Coverage  | {before_coverage} | {after_coverage} | {total_diff}      |
@@ -713,8 +712,7 @@ class CoverageDiff:
                 | Columns   | {before_columns}  | {after_columns}  | {columns_add_del} |
                 | Hits      | {before_hits}     | {after_hits}     | {hits_add_del}    |
                 | Misses    | {before_misses}   | {after_misses}   | {misses_add_del}  |
-                """
-            )
+                """)
 
             formatted = template.format(
                 before_coverage=f"{before_cov:.2%}",
