@@ -19,7 +19,7 @@ repos:
       - id: isort
         name: isort (python)
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 25.12.0  # Use the same version as in pyproject.toml
+    rev: 26.10.0  # Use the same version as in pyproject.toml
     hooks:
       - id: black
         name: Run black formatter
