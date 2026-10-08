@@ -307,7 +307,7 @@ class Manifest:
             if not column_name:
                 continue
 
-            column_name = column_name.lower()
+            column_name = cls._normalize_column_name(column_name)
             table_tests = tests.setdefault(table_id, {})
             column_tests = table_tests.setdefault(column_name, [])
             column_tests.append(node)
@@ -337,9 +337,16 @@ class Manifest:
         return f"{table['schema']}.{table['name']}".lower()
 
     @staticmethod
-    def _normalize_column_names(columns):
+    def _normalize_column_name(name):
+        # Manifest names may contain SQL identifier quotes, unlike catalog names.
+        if len(name) >= 2 and name.startswith('"') and name.endswith('"'):
+            name = name[1:-1].replace('""', '"')
+        return name.lower()
+
+    @classmethod
+    def _normalize_column_names(cls, columns):
         for col in columns.values():
-            col["name"] = col["name"].lower()
+            col["name"] = cls._normalize_column_name(col["name"])
         return {col["name"]: col for col in columns.values()}
 
     @staticmethod
