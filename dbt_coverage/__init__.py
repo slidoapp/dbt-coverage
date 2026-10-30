@@ -1046,7 +1046,7 @@ def do_compute(
     """
 
     catalog = load_files(project_dir, run_artifacts_dir)
-    if model_path_filter or model_path_exclusion_filter:
+    if model_path_filter is not None or model_path_exclusion_filter is not None:
         catalog = catalog.filter_tables(model_path_filter, model_path_exclusion_filter)
         if not catalog.all_tables():
             raise ValueError(
